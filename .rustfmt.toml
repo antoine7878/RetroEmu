@@ -1,0 +1,5 @@
+max_width = 120
+unstable_features = true
+fn_single_line = true
+struct_variant_width = 120
+use_small_heuristics = "Max"
