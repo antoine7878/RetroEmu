@@ -1,9 +1,12 @@
+use std::fmt;
+
 #[rustfmt::skip]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum R8 { B, C, D, E, H, L, HlInd, A }
 
 impl R8 {
     const ALL: [Self; 8] = [Self::B, Self::C, Self::D, Self::E, Self::H, Self::L, Self::HlInd, Self::A];
+    const FMT: [&str; 8] = ["b", "c", "d", "e", "h", "l", "[hl]", "a"];
     fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
 }
 
@@ -13,15 +16,17 @@ pub enum R16 { BC, DE, HL, SP }
 
 impl R16 {
     const ALL: [Self; 4] = [Self::BC, Self::DE, Self::HL, Self::SP];
+    const FMT: [&str; 4] = ["bc", "de", "hl", "sp"];
     fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
 }
 
 #[rustfmt::skip]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum R16Stk { BC, DE, HL, AF }
+pub enum R16Stk { BC = 0, DE = 1, HL = 2, AF = 3 }
 
 impl R16Stk {
     const ALL: [Self; 4] = [Self::BC, Self::DE, Self::HL, Self::AF];
+    const FMT: [&str; 4] = ["bc", "de", "hl", "af"];
     fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
 }
 
@@ -31,6 +36,7 @@ pub enum R16Mem { BC, DE, HlInc, HlDec }
 
 impl R16Mem {
     const ALL: [Self; 4] = [Self::BC, Self::DE, Self::HlInc, Self::HlDec];
+    const FMT: [&str; 4] = ["[bc]", "[be]", "[hl-]", "[hl+]"];
     fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
 }
 
@@ -40,6 +46,7 @@ pub enum Cond { NZ, Z, NC, C }
 
 impl Cond {
     const ALL: [Self; 4] = [Self::NZ, Self::Z, Self::NC, Self::C];
+    const FMT: [&str; 4] = ["nz", "z", "nc", "c"];
     fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
 }
 
@@ -49,6 +56,7 @@ pub enum AluOp { Add, Adc, Sub, Sbc, And, Xor, Or, Cp }
 
 impl AluOp {
     const ALL: [Self; 8] = [Self::Add, Self::Adc, Self::Sub, Self::Sbc, Self::And, Self::Xor, Self::Or, Self::Cp];
+    const FMT: [&str; 8] = ["add", "adc", "sub", "sbc", "and", "xor", "or", "cp"];
     fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
 }
 
@@ -58,6 +66,7 @@ pub enum ShiftOp { Rlc, Rrc, Rl, Rr, Sla, Sra, Swap, Srl }
 
 impl ShiftOp {
     const ALL: [Self; 8] = [Self::Rlc, Self::Rrc, Self::Rl, Self::Rr, Self::Sla, Self::Sra, Self::Swap, Self::Srl];
+    const FMT: [&str; 8] = ["rlc", "rrc", "rl", "rr", "sla", "sra", "swap", "srl"];
     fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
 }
 
@@ -73,19 +82,18 @@ pub enum Instruction {
     // 8-bit loads
     Ld(R8, R8),
     LdN(R8),
-
-    // 16-bit loads
-    Ld16N(R16),
-    LdA16SP,
-    LdR16MemA(R16Mem),
-    LdAR16Mem(R16Mem),
-
     LdhImmA,
     LdhAImm,
     LdhCA,
     LdhAC,
     LdhAbsA,
     LdhAAbs,
+
+    // 16-bit loads
+    Ld16N(R16),
+    LdA16SP,
+    LdR16MemA(R16Mem),
+    LdAR16Mem(R16Mem),
     LdHlSp8,
     LdSpHl,
 
@@ -103,8 +111,8 @@ pub enum Instruction {
     Jr(Option<Cond>),
     Jp(Option<Cond>),
     Call(Option<Cond>),
-    JpHl,
     Ret(Option<Cond>),
+    JpHl,
     RetI,
     Rst(u8),
 
@@ -230,3 +238,77 @@ impl Instruction {
 
     pub fn cycle_count(&self) -> u32 { 1 }
 }
+
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Instruction::Nop => write!(f, "nop"),
+            Instruction::Stop => write!(f, "stop"),
+            Instruction::Halt => write!(f, "halt"),
+            Instruction::Di => write!(f, "di"),
+            Instruction::Ei => write!(f, "ei"),
+            Instruction::Ld(src, dst) => write!(f, "ld {src}, {dst}"),
+            Instruction::LdN(r) => write!(f, "ld {r}, n8"),
+            Instruction::LdhImmA => write!(f, "ldh [a16], a"),
+            Instruction::LdhAImm => write!(f, "ldh a, [a16]"),
+            Instruction::LdhCA => write!(f, "ldh c a"),
+            Instruction::LdhAC => write!(f, "ldh a c"),
+            Instruction::LdhAbsA => write!(f, "ldh [a8], a"),
+            Instruction::LdhAAbs => write!(f, "ldh a, [a8]"),
+            Instruction::Ld16N(r) => write!(f, "ld {r}, n16"),
+            Instruction::LdA16SP => write!(f, "ld [a16], sp"),
+            Instruction::LdR16MemA(r) => write!(f, "ld {r}, a"),
+            Instruction::LdAR16Mem(r) => write!(f, "ld a, {r}"),
+            Instruction::LdSpHl => write!(f, "ld sp, hl"),
+            Instruction::LdHlSp8 => write!(f, "ld hl, sp + e8"),
+            Instruction::Alu(op, r) => write!(f, "{op} a, {r}"),
+            Instruction::AluN(op) => write!(f, "{op} a, n8 "),
+            Instruction::Inc(r) => write!(f, "inc {r}"),
+            Instruction::Dec(r) => write!(f, "dec {r}"),
+            Instruction::Inc16(r) => write!(f, "inc {r}"),
+            Instruction::Dec16(r) => write!(f, "dec {r}"),
+            Instruction::AddHl(r) => write!(f, "add hl, {r}"),
+            Instruction::AddSpImm => write!(f, "add sp, e8"),
+            Instruction::Jr(None) => write!(f, "jr e8"),
+            Instruction::Jr(Some(c)) => write!(f, "jr {c}, e8"),
+            Instruction::Jp(None) => write!(f, "jp a16"),
+            Instruction::Jp(Some(c)) => write!(f, "jp {c}, a16"),
+            Instruction::JpHl => write!(f, "jp hl"),
+            Instruction::Call(None) => write!(f, "call a16"),
+            Instruction::Call(Some(c)) => write!(f, "call {c}, a16"),
+            Instruction::Ret(None) => write!(f, "ret"),
+            Instruction::Ret(Some(c)) => write!(f, "ret {c}"),
+            Instruction::RetI => write!(f, "reti"),
+            Instruction::Rst(i) => write!(f, "rst {i:2x}"),
+            Instruction::Pop(r) => write!(f, "pop {r}"),
+            Instruction::Push(r) => write!(f, "push {r}"),
+            Instruction::Rcla => write!(f, "rlca"),
+            Instruction::Rrca => write!(f, "rrca"),
+            Instruction::Rla => write!(f, "rla"),
+            Instruction::Rra => write!(f, "rra"),
+            Instruction::Dda => write!(f, "dda"),
+            Instruction::Cpl => write!(f, "cpl"),
+            Instruction::Scf => write!(f, "scf"),
+            Instruction::Ccf => write!(f, "ccf"),
+            Instruction::Shift(op, r) => write!(f, "{op}, {r}"),
+            Instruction::Bit(i, r) => write!(f, "bit {i}, {r}"),
+            Instruction::Res(i, r) => write!(f, "res {i}, {r}"),
+            Instruction::Set(i, r) => write!(f, "set {i}, {r}"),
+            Instruction::Illegal(opc) => write!(f, "ILLEGAL opcode {opc}"),
+        }
+    }
+}
+
+macro_rules! impl_display_from_fmt {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl fmt::Display for $ty {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    f.write_str(Self::FMT[*self as usize])
+                }
+            }
+        )*
+    };
+}
+
+impl_display_from_fmt!(R8, R16, R16Stk, R16Mem, Cond, AluOp, ShiftOp,);
