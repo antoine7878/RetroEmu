@@ -44,8 +44,7 @@ impl Cpu {
         let opcode = bus.read_u16(pc);
         let instruction = Instruction::decode(opcode).ok_or(Error::UnknownOpcode { opcode, pc })?;
         self.pc = pc.wrapping_add(2);
-        self.execute(instruction, bus)
-            .map_err(|kind| Error::Execution { kind, pc, instruction })?;
+        self.execute(instruction, bus).map_err(|kind| Error::Execution { kind, pc, instruction })?;
         Ok(instruction.cycle_count())
     }
 

@@ -1,5 +1,3 @@
-use super::error::GBError;
-
 #[rustfmt::skip]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum R8 { B, C, D, E, H, L, HlInd, A }
@@ -22,13 +20,28 @@ impl R16 {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum R16Stk { BC, DE, HL, AF }
 
+impl R16Stk {
+    const ALL: [Self; 4] = [Self::BC, Self::DE, Self::HL, Self::AF];
+    fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
+}
+
 #[rustfmt::skip]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum R16Mem { BC, DE, HlInc, HlDec }
 
+impl R16Mem {
+    const ALL: [Self; 4] = [Self::BC, Self::DE, Self::HlInc, Self::HlDec];
+    fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
+}
+
 #[rustfmt::skip]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cond { NZ, Z, NC, C }
+
+impl Cond {
+    const ALL: [Self; 4] = [Self::NZ, Self::Z, Self::NC, Self::C];
+    fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
+}
 
 #[rustfmt::skip]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,12 +56,19 @@ impl AluOp {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShiftOp { Rlc, Rrc, Rl, Rr, Sla, Sra, Swap, Srl }
 
+impl ShiftOp {
+    const ALL: [Self; 8] = [Self::Rlc, Self::Rrc, Self::Rl, Self::Rr, Self::Sla, Self::Sra, Self::Swap, Self::Srl];
+    fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Instruction {
     // Control
     Nop,
     Stop,
     Halt,
+    Di,
+    Ei,
 
     // 8-bit loads
     Ld(R8, R8),
@@ -56,6 +76,18 @@ pub enum Instruction {
 
     // 16-bit loads
     Ld16N(R16),
+    LdA16SP,
+    LdR16MemA(R16Mem),
+    LdAR16Mem(R16Mem),
+
+    LdhImmA,
+    LdhAImm,
+    LdhCA,
+    LdhAC,
+    LdhAbsA,
+    LdhAAbs,
+    LdHlSp8,
+    LdSpHl,
 
     // Arithmetic
     Alu(AluOp, R8),
@@ -65,82 +97,136 @@ pub enum Instruction {
     Inc16(R16),
     Dec16(R16),
     AddHl(R16),
+    AddSpImm,
+
+    // Jump
+    Jr(Option<Cond>),
+    Jp(Option<Cond>),
+    Call(Option<Cond>),
+    JpHl,
+    Ret(Option<Cond>),
+    RetI,
+    Rst(u8),
+
+    // Stack
+    Pop(R16Stk),
+    Push(R16Stk),
+
+    // Accumulator/Flag
+    Rcla,
+    Rrca,
+    Rla,
+    Rra,
+    Dda,
+    Cpl,
+    Scf,
+    Ccf,
+
+    // Prefix
+    Shift(ShiftOp, R8),
+    Bit(u8, R8),
+    Res(u8, R8),
+    Set(u8, R8),
+
+    Illegal(u8),
 }
 
 impl Instruction {
-    pub fn decode(op_code: u8) -> Result<Self, GBError> {
-        use Instruction as I;
+    pub fn decode(op_code: u8) -> Self {
+        match op_code >> 6 {
+            0 => Self::block0(op_code),
+            1 => Self::block1(op_code),
+            2 => Self::block2(op_code),
+            3 => Self::block3(op_code),
+            _ => Instruction::Illegal(op_code),
+        }
+    }
 
-        let hi = op_code >> 6;
-        let mi = (op_code & 0o070) >> 3;
-        let lo = op_code & 0o007;
-        let instruction = match (hi, mi, lo) {
-            // Control
-            (0, 0, 0) => I::Nop,
-            (0, 2, 0) => I::Stop,
-            (1, 6, 6) => I::Halt,
+    fn milo(op_code: u8) -> (u8, u8) { ((op_code & 0o070) >> 3, op_code & 0o007) }
 
-            // Arithmetic
-            (0, r, 4) => I::Inc(R8::oct(r)),
-            (0, r, 5) => I::Dec(R8::oct(r)),
-            (2, op, r) => I::Alu(AluOp::oct(op), R8::oct(r)),
-            (3, op, 6) => I::AluN(AluOp::oct(op)),
-            (0, r, 3) if r & 1 == 0 => I::Inc16(R16::oct(r)),
-            (0, r, 3) => I::Dec16(R16::oct(r)),
-            (0, r, 1) if r & 1 == 0 => I::Ld16N(R16::oct(r)),
-            (0, r, 1) => I::AddHl(R16::oct(r)),
+    fn block0(op_code: u8) -> Self {
+        match Self::milo(op_code) {
+            (0, 0) => Instruction::Nop,
+            (1, 0) => Instruction::Stop,
+            (2, 0) => Instruction::LdA16SP,
+            (3, 0) => Instruction::Jr(None),
+            (c, 0) => Instruction::Jr(Some(Cond::oct(c >> 2))),
+            (r @ (0 | 2 | 4 | 6), 1) => Instruction::Ld16N(R16::oct(r)),
+            (r, 1) => Instruction::AddHl(R16::oct(r)),
+            (o @ (0 | 2 | 4 | 6), 2) => Instruction::LdR16MemA(R16Mem::oct(o)),
+            (o, 2) => Instruction::LdAR16Mem(R16Mem::oct(o)),
+            (r @ (0 | 2 | 4 | 6), 3) => Instruction::Inc16(R16::oct(r)),
+            (r, 3) => Instruction::Dec16(R16::oct(r)),
+            (r, 4) => Instruction::Inc(R8::oct(r)),
+            (r, 5) => Instruction::Dec(R8::oct(r)),
+            (r, 6) => Instruction::LdN(R8::oct(r)),
+            (0, 7) => Instruction::Rcla,
+            (1, 7) => Instruction::Rrca,
+            (2, 7) => Instruction::Rla,
+            (3, 7) => Instruction::Rra,
+            (4, 7) => Instruction::Dda,
+            (5, 7) => Instruction::Cpl,
+            (6, 7) => Instruction::Scf,
+            (7, 7) => Instruction::Ccf,
+            _ => Instruction::Illegal(op_code),
+        }
+    }
 
-            // Ld
-            (0, r, 6) => I::LdN(R8::oct(r)),
-            (1, src, dst) => I::Ld(R8::oct(src), R8::oct(dst)),
+    fn block1(op_code: u8) -> Self {
+        match Self::milo(op_code) {
+            (6, 6) => Instruction::Halt,
+            (src @ 0..8, dst @ 0..8) => Instruction::Ld(R8::oct(src), R8::oct(dst)),
+            _ => Instruction::Illegal(op_code),
+        }
+    }
 
-            _ => todo!(),
-        };
-        Ok(instruction)
+    fn block2(op_code: u8) -> Self {
+        match Self::milo(op_code) {
+            (op @ 0..8, r @ 0..8) => Instruction::Alu(AluOp::oct(op), R8::oct(r)),
+            _ => Instruction::Illegal(op_code),
+        }
+    }
+
+    fn block3(op_code: u8) -> Self {
+        match Self::milo(op_code) {
+            (c @ 0..4, 0) => Instruction::Ret(Some(Cond::oct(c))),
+            (4, 0) => Instruction::LdhImmA,
+            (5, 0) => Instruction::AddSpImm,
+            (6, 0) => Instruction::LdhAImm,
+            (7, 0) => Instruction::LdHlSp8,
+            (1, 1) => Instruction::Ret(None),
+            (3, 1) => Instruction::RetI,
+            (5, 1) => Instruction::JpHl,
+            (7, 1) => Instruction::LdSpHl,
+            (r @ (0 | 2 | 4 | 6), 1) => Instruction::Pop(R16Stk::oct(r << 2)),
+            (o @ 0..4, 2) => Instruction::Jp(Some(Cond::oct(o))),
+            (4, 2) => Instruction::LdhCA,
+            (5, 2) => Instruction::LdhAbsA,
+            (6, 2) => Instruction::LdhAC,
+            (7, 2) => Instruction::LdhAAbs,
+            (0, 3) => Instruction::Jp(None),
+            (1, 3) => Self::prefix(op_code),
+            (6, 3) => Instruction::Di,
+            (7, 3) => Instruction::Ei,
+            (c @ 0..4, 4) => Instruction::Call(Some(Cond::oct(c))),
+            (r @ (0 | 2 | 4 | 6), 5) => Instruction::Push(R16Stk::oct(r << 2)),
+            (1, 5) => Instruction::Call(None),
+            (op, 6) => Instruction::AluN(AluOp::oct(op)),
+            (j, 7) => Instruction::Rst(j << 3),
+            _ => Instruction::Illegal(op_code),
+        }
+    }
+
+    fn prefix(op_code: u8) -> Self {
+        let (mi, lo) = Self::milo(op_code);
+        match (op_code >> 3, mi, lo) {
+            (0, o @ 0..8, r @ 0..8) => Instruction::Shift(ShiftOp::oct(o), R8::oct(r)),
+            (1, i @ 0..8, r @ 0..8) => Instruction::Bit(i, R8::oct(r)),
+            (2, i @ 0..8, r @ 0..8) => Instruction::Res(i, R8::oct(r)),
+            (3, i @ 0..8, r @ 0..8) => Instruction::Set(i, R8::oct(r)),
+            _ => Instruction::Illegal(op_code),
+        }
     }
 
     pub fn cycle_count(&self) -> u32 { 1 }
 }
-
-// impl fmt::Display for Instruction {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         // use Instruction as I;
-//         match *self {
-//             _ => todo!(),
-//             // I::ClearScreen => write!(f, "CLS"),
-//             // I::Return => write!(f, "RET"),
-//             // I::Jump(a) => write!(f, "JP   {a:03X}"),
-//             // I::Call(a) => write!(f, "CALL {a:03X}"),
-//             // I::SkipEqImm(x, n) => write!(f, "SE   V{x:X}, {n:02X}"),
-//             // I::SkipNeqImm(x, n) => write!(f, "SNE  V{x:X}, {n:02X}"),
-//             // I::SkipEqReg(x, y) => write!(f, "SE   V{x:X}, V{y:X}"),
-//             // I::SkipNeqReg(x, y) => write!(f, "SNE  V{x:X}, V{y:X}"),
-//             // I::LoadImm(x, n) => write!(f, "LD   V{x:X}, {n:02X}"),
-//             // I::AddImm(x, n) => write!(f, "ADD  V{x:X}, {n:02X}"),
-//             // I::LoadReg(x, y) => write!(f, "LD   V{x:X}, V{y:X}"),
-//             // I::Or(x, y) => write!(f, "OR   V{x:X}, V{y:X}"),
-//             // I::And(x, y) => write!(f, "AND  V{x:X}, V{y:X}"),
-//             // I::Xor(x, y) => write!(f, "XOR  V{x:X}, V{y:X}"),
-//             // I::AddReg(x, y) => write!(f, "ADD  V{x:X}, V{y:X}"),
-//             // I::Sub(x, y) => write!(f, "SUB  V{x:X}, V{y:X}"),
-//             // I::ShiftRight(x, y) => write!(f, "SHR  V{x:X}, V{y:X}"),
-//             // I::SubReverse(x, y) => write!(f, "SUBN V{x:X}, V{y:X}"),
-//             // I::ShiftLeft(x, y) => write!(f, "SHL  V{x:X}, V{y:X}"),
-//             // I::LoadIndex(a) => write!(f, "LD   I, {a:03X}"),
-//             // I::JumpOffset(a) => write!(f, "JP   V0, {a:03X}"),
-//             // I::Random(x, n) => write!(f, "RND  V{x:X}, {n:02X}"),
-//             // I::Draw(x, y, n) => write!(f, "DRW  V{x:X}, V{y:X}, {n:X}"),
-//             // I::SkipKey(x) => write!(f, "SKP  V{x:X}"),
-//             // I::SkipNotKey(x) => write!(f, "SKNP V{x:X}"),
-//             // I::LoadDelay(x) => write!(f, "LD   V{x:X}, DT"),
-//             // I::WaitKey(x) => write!(f, "LD   V{x:X}, K"),
-//             // I::SetDelay(x) => write!(f, "LD   DT, V{x:X}"),
-//             // I::SetSound(x) => write!(f, "LD   ST, V{x:X}"),
-//             // I::AddIndex(x) => write!(f, "ADD  I, V{x:X}"),
-//             // I::LoadFont(x) => write!(f, "LD   F, V{x:X}"),
-//             // I::Bcd(x) => write!(f, "LD   B, V{x:X}"),
-//             // I::Store(x) => write!(f, "LD   [I], V{x:X}"),
-//             // I::Load(x) => write!(f, "LD   V{x:X}, [I]"),
-//         }
-//     }
-// }

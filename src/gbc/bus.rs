@@ -9,7 +9,6 @@ pub struct Bus {
     pub keypad: Keypad,
     pub delay_timer: Timer,
     pub sound_timer: Timer,
-    // pub io_registers
 }
 
 impl Bus {
