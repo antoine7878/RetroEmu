@@ -1,16 +1,18 @@
+use super::instruction::{R8, R16};
+
 const ZERO_FLAG: u8 = 8;
 const SUB_FLAG: u8 = 7;
 const HALF_CARRY_FLAG: u8 = 5;
 const CARRY_FLAG: u8 = 4;
 
 #[rustfmt::skip]
+#[derive(Default)]
 pub struct Registers {
-    a: u8, f: u8,
-    b: u8, c: u8,
-    d: u8, e: u8,
-    h: u8, l: u8,
-    sp: u16,
-    cp: u16,
+    pub a: u8, pub f: u8,
+    pub b: u8, pub c: u8,
+    pub d: u8, pub e: u8,
+    pub h: u8, pub l: u8,
+    pub sp: u16,
 }
 
 impl Registers {
@@ -40,4 +42,48 @@ impl Registers {
     pub fn reset_n(&mut self) { self.f &= !(1 << SUB_FLAG) }
     pub fn reset_h(&mut self) { self.f &= !(1 << HALF_CARRY_FLAG) }
     pub fn reset_c(&mut self) { self.f &= !(1 << CARRY_FLAG) }
+
+    pub fn get_r16(&self, r: R16) -> u16 {
+        match r {
+            R16::BC => self.get_bc(),
+            R16::DE => self.get_de(),
+            R16::HL => self.get_hl(),
+            R16::SP => self.sp,
+        }
+    }
+
+    pub fn set_r16(&mut self, r: R16, value: u16) {
+        match r {
+            R16::BC => self.set_bc(value),
+            R16::DE => self.set_de(value),
+            R16::HL => self.set_hl(value),
+            R16::SP => self.sp = value,
+        }
+    }
+
+    pub fn get_r8(&self, r: R8) -> u8 {
+        match r {
+            R8::B => self.b,
+            R8::C => self.c,
+            R8::D => self.d,
+            R8::E => self.e,
+            R8::H => self.h,
+            R8::L => self.l,
+            R8::A => self.a,
+            R8::HlInd => unreachable!(),
+        }
+    }
+
+    pub fn set_r8(&mut self, r: R8, value: u8) {
+        match r {
+            R8::B => self.b = value,
+            R8::C => self.c = value,
+            R8::D => self.d = value,
+            R8::E => self.e = value,
+            R8::H => self.h = value,
+            R8::L => self.l = value,
+            R8::A => self.a = value,
+            R8::HlInd => unreachable!(),
+        }
+    }
 }

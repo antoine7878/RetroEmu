@@ -4,7 +4,6 @@ pub const PROGRAM_START: u16 = 0;
 
 pub struct Memory {
     rom: [u8; MEMORY_SIZE],
-    banks: ba,
 }
 
 impl Memory {
@@ -14,6 +13,5 @@ impl Memory {
     }
 
     pub fn read(&self, addr: u16) -> u8 { self.rom[addr as usize % MEMORY_SIZE] }
-
     pub fn write(&mut self, addr: u16, value: u8) { self.rom[addr as usize % MEMORY_SIZE] = value; }
 }

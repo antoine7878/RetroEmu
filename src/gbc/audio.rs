@@ -1,28 +1,35 @@
-pub const SAMPLE_RATE: u32 = 44_100;
-
-const TONE_HZ: f32 = 440.0;
-const VOLUME: f32 = 0.25;
+use crate::gbc::io::IORegister;
 
 #[derive(Default)]
-pub struct Beeper {
-    phase: f32,
-    samples: Vec<f32>,
-}
+pub struct Audio {
+    pub nr10: IORegister<0x7F>,
+    pub nr11: IORegister<0xFF>,
+    pub nr12: IORegister<0xFF>,
+    pub nr13: IORegister<0xFF>,
+    pub nr14: IORegister<0xC7>,
 
-impl Beeper {
-    pub fn generate(&mut self, count: usize, timer_value: u8) {
-        let on = timer_value > 0;
-        let phase_inc = TONE_HZ / SAMPLE_RATE as f32;
-        for _ in 0..count {
-            let sample = match (on, self.phase < 0.5) {
-                (false, _) => 0.0,
-                (true, true) => VOLUME,
-                (true, false) => -VOLUME,
-            };
-            self.samples.push(sample);
-            self.phase = (self.phase + phase_inc) % 1.0;
-        }
-    }
+    pub nr21: IORegister<0xFF>,
+    pub nr22: IORegister<0xFF>,
+    pub nr23: IORegister<0xFF>,
+    pub nr24: IORegister<0xC7>,
 
-    pub fn drain(&mut self, out: &mut Vec<f32>) { out.append(&mut self.samples); }
+    pub nr30: IORegister<0x80>,
+    pub nr31: IORegister<0xFF>,
+    pub nr32: IORegister<0x60>,
+    pub nr33: IORegister<0xFF>,
+    pub nr34: IORegister<0xC7>,
+
+    pub nr41: IORegister<0x3F>,
+    pub nr42: IORegister<0xFF>,
+    pub nr43: IORegister<0xFF>,
+    pub nr44: IORegister<0xC0>,
+
+    pub nr50: IORegister<0xFF>,
+    pub nr51: IORegister<0xFF>,
+    pub nr52: IORegister<0x8F>,
+
+    pub pcm12: IORegister<0xFF>,
+    pub pcm34: IORegister<0xFF>,
+
+    pub w_ram: [u8; 16],
 }
