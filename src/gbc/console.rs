@@ -18,12 +18,7 @@ impl Chip8 {
         if rom.len() > MAX_ROM_SIZE {
             return Err(Error::RomTooLarge { size: rom.len() });
         }
-        Ok(Self {
-            cpu: Cpu::new(config.rng_seed),
-            bus: Bus::new(rom),
-            beeper: Beeper::default(),
-            config,
-        })
+        Ok(Self { cpu: Cpu::new(config.rng_seed), bus: Bus::new(rom), beeper: Beeper::default(), config })
     }
 
     pub fn run_frame(&mut self) -> Result<(), Error> {
@@ -33,24 +28,15 @@ impl Chip8 {
             self.bus.tick_timers(c);
             cycle_count -= c;
         }
-        self.beeper
-            .generate(SAMPLES_PER_FRAME, self.bus.sound_timer.value() as u8);
+        self.beeper.generate(SAMPLES_PER_FRAME, self.bus.sound_timer.value() as u8);
         Ok(())
     }
 
-    pub fn set_key(&mut self, key: u8, pressed: bool) {
-        self.bus.keypad.set(key, pressed);
-    }
+    pub fn set_key(&mut self, key: u8, pressed: bool) { self.bus.keypad.set(key, pressed); }
 
-    pub fn pixels(&self) -> &[u8] {
-        self.bus.display.pixels()
-    }
+    pub fn pixels(&self) -> &[u8] { self.bus.display.pixels() }
 
-    pub fn take_redraw(&mut self) -> bool {
-        self.bus.display.take_dirty()
-    }
+    pub fn take_redraw(&mut self) -> bool { self.bus.display.take_dirty() }
 
-    pub fn drain_audio(&mut self, out: &mut Vec<f32>) {
-        self.beeper.drain(out);
-    }
+    pub fn drain_audio(&mut self, out: &mut Vec<f32>) { self.beeper.drain(out); }
 }

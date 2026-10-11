@@ -4,6 +4,7 @@ mod config;
 mod cpu;
 mod display;
 mod error;
+mod flag;
 mod instruction;
 mod interrupt;
 mod io;
@@ -14,6 +15,5 @@ mod memory;
 mod registers;
 mod timer;
 
-pub use audio::SAMPLE_RATE;
 pub use config::Config;
 pub use display::{HEIGHT, WIDTH};

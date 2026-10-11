@@ -1,8 +1,7 @@
 use super::bus::Bus;
-use super::instruction::Instruction;
-use super::instruction::R8;
+use super::instruction::{Instruction, R8, R16};
 use super::memory::PROGRAM_START;
-use super::registers::Registers;
+use super::registers::{FlagSpec, Registers};
 
 const STACK_SIZE: usize = 16;
 
@@ -66,12 +65,13 @@ impl Cpu {
     }
 
     fn execute(&mut self, instruction: Instruction, bus: &mut Bus) {
-        match instruction {
+        let flags = match instruction {
             Instruction::Nop => (),
             Instruction::Stop => self.power_mode = PowerMode::Stop,
             Instruction::Halt => self.power_mode = PowerMode::Halt,
             Instruction::Di => self.ime = false,
             Instruction::Ei => self.ime = true,
+
             Instruction::Ld(R8::HlInd, R8::HlInd) => unreachable!(),
             Instruction::Ld(r, R8::HlInd) => self.registers.set_r8(r, bus.read(self.registers.get_hl())),
             Instruction::Ld(R8::HlInd, r) => bus.write(self.registers.get_hl(), self.registers.get_r8(r)),
@@ -94,14 +94,12 @@ impl Cpu {
             Instruction::Alu(_, _) => todo!(),
             Instruction::AluN(_) => todo!(),
 
-            Instruction::Inc(R8::HlInd) => self.inc_hl(bus),
-            Instruction::Dec(R8::HlInd) => self.dec_hl(bus),
-            Instruction::Inc(r) => self.registers.set_r8(r, self.registers.get_r8(r).wrapping_add(1)),
-            Instruction::Dec(r) => self.registers.set_r8(r, self.registers.get_r8(r).wrapping_sub(1)),
-            Instruction::Inc16(r) => self.registers.set_r16(r, self.registers.get_r16(r).wrapping_add(1)),
-            Instruction::Dec16(r) => self.registers.set_r16(r, self.registers.get_r16(r).wrapping_sub(1)),
+            Instruction::Inc(r) => self.inc8(bus, r),
+            Instruction::Dec(r) => self.dec8(bus, r),
+            Instruction::Inc16(r) => self.inc16(r),
+            Instruction::Dec16(r) => self.dec16(r),
 
-            Instruction::AddHl(r) => self.registers.set_hl(self.registers.get_r16(r)),
+            Instruction::AddHl(_) => todo!(),
             Instruction::AddSpImm => todo!(),
             Instruction::Jr(None) => todo!(),
             Instruction::Jr(Some(_)) => todo!(),
@@ -136,14 +134,38 @@ impl Cpu {
         }
     }
 
-    fn inc_hl(&mut self, bus: &mut Bus) {
-        let hl = self.registers.get_hl();
-        bus.write(hl, bus.read(hl).wrapping_add(1))
+    fn get_r8(&self, bus: &mut Bus, r: R8) -> u8 {
+        match r {
+            R8::HlInd => bus.read(self.registers.get_hl()),
+            _ => self.registers.get_r8(r),
+        }
     }
 
-    fn dec_hl(&mut self, bus: &mut Bus) {
-        let hl = self.registers.get_hl();
-        bus.write(hl, bus.read(hl).wrapping_sub(1))
+    fn set_r8(&mut self, bus: &mut Bus, r: R8, value: u8) {
+        match r {
+            R8::HlInd => bus.write(self.registers.get_hl(), value),
+            _ => self.registers.set_r8(r, value),
+        }
+    }
+
+    fn dec8(&mut self, bus: &mut Bus, r: R8) {
+        let value = self.get_r8(bus, r);
+        self.set_r8(bus, r, value.wrapping_add(1));
+    }
+
+    fn inc8(&mut self, bus: &mut Bus, r: R8) {
+        let value = self.get_r8(bus, r);
+        self.set_r8(bus, r, value.wrapping_add(1));
+    }
+
+    fn dec16(&mut self, r: R16) {
+        let value = self.registers.get_r16(r);
+        self.registers.set_r16(r, value.wrapping_add(1));
+    }
+
+    fn inc16(&mut self, r: R16) {
+        let value = self.registers.get_r16(r);
+        self.registers.set_r16(r, value.wrapping_add(1));
     }
 
     fn ldn(&mut self, bus: &Bus, r: R8) {
@@ -152,8 +174,45 @@ impl Cpu {
     }
 }
 
+pub fn add8(a: u8, b: u8, carry: bool) -> (u8, Flags) {
+    let c = carry as u8;
+    let sum = a as u16 + b as u16 + c as u16;
+    let result = sum as u8;
+
+    let flags = Flags {
+        z: result == 0,
+        n: false, h: (a & 0x0F) + (b & 0x0F) + c > 0x0F,
+        c: sum > 0xFF,
+    };
+
+    (result, flags)
+}
+
+pub fn sub8(a: u8, b: u8, carry: bool) -> (u8, Flags) { ... }
+pub fn and8(a: u8, b: u8) -> (u8, Flags) { ... }
+pub fn rlc(v: u8) -> (u8, Flags) { ... }
+pub fn add16(a: u16, b: u16) -> (u16, Flags) { ... } 
+
+const INC: FlagSpec = FlagSpec::parse("R0R-");
+const ADD_HL: FlagSpec = FlagSpec::parse("-0RR");
+const ADD_SP: FlagSpec = FlagSpec::parse("00RR");
+const RLCA: FlagSpec = FlagSpec::parse("000R");
+const CB_RLC: FlagSpec = FlagSpec::parse("R00R");
+const AND: FlagSpec = FlagSpec::parse("R010");
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Fault {
     StackOverflow,
     StackUnderflow,
 }
+
+// impl AluOp {
+//     pub const fn flag_spec(self) -> FlagSpec {
+//         match self {
+//             AluOp::Add | AluOp::Adc => FlagSpec::parse("Z0HC"),
+//             AluOp::Sub | AluOp::Sbc | AluOp::Cp => FlagSpec::parse("Z1HC"),
+//             AluOp::And => FlagSpec::parse("Z010"),
+//             AluOp::Xor | AluOp::Or => FlagSpec::parse("Z000"),
+//         }
+//     }
+// }
