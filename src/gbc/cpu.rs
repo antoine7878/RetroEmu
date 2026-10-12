@@ -1,9 +1,11 @@
+use super::alu;
 use super::bus::Bus;
-use super::instruction::{Instruction, R8, R16};
+use super::flag::FlagSpec;
+use super::instruction::{AluOp, Cond, Instruction, R8, R16, R16Mem, R16Stk};
 use super::memory::PROGRAM_START;
-use super::registers::{FlagSpec, Registers};
+use super::registers::Registers;
 
-const STACK_SIZE: usize = 16;
+// const STACK_SIZE: usize = 16;
 
 const CPU_CLOCK: u32 = 1 << 22;
 const CYCLE_PER_SCAN_LINE: u32 = 456;
@@ -27,7 +29,7 @@ pub struct Cpu {
     v: [u8; 16],
     i: u16,
     pc: u16,
-    stack: [u16; STACK_SIZE],
+    stack: Vec<u16>,
     sp: usize,
     power_mode: PowerMode,
     ime: bool,
@@ -40,7 +42,7 @@ impl Cpu {
             v: [0; 16],
             i: 0,
             pc: PROGRAM_START,
-            stack: [0; STACK_SIZE],
+            stack: Vec::new(),
             sp: 0,
             power_mode: PowerMode::default(),
             ime: false,
@@ -48,72 +50,70 @@ impl Cpu {
         }
     }
 
-    pub fn take_8(&mut self, bus: &Bus) -> u8 {
+    pub fn take_pc8(&mut self, bus: &Bus) -> u8 {
         let res = bus.read(self.pc);
         self.pc = self.pc.wrapping_add(2);
         res
     }
 
-    // fn read_pc_ff8(&mut self, bus: &Bus) -> u16 { 0xFF00 | self.read_pc_8(bus) as u16 }
-    fn a(addr: u8) -> u16 { 0xFF00 | addr as u16 }
-    // pub fn read_pc_16(&mut self, bus: &Bus) -> u16 { (self.read_pc_8(bus) as u16) << 8 | (self.read_pc_8(bus) as u16) }
+    pub fn take_pc16(&mut self, bus: &Bus) -> u16 {
+        let r1 = self.take_pc8(bus);
+        let r2 = self.take_pc8(bus);
+        (r1 as u16) << 8 | (r2 as u16)
+    }
+
+    fn map_high_page(addr: u8) -> u16 { 0xFF00 | addr as u16 }
 
     pub fn step(&mut self, bus: &mut Bus) {
-        let opcode = self.take_8(bus);
+        let opcode = self.take_pc8(bus);
         let instruction = Instruction::decode(opcode);
         self.execute(instruction, bus)
     }
 
     fn execute(&mut self, instruction: Instruction, bus: &mut Bus) {
-        let flags = match instruction {
+        match instruction {
             Instruction::Nop => (),
             Instruction::Stop => self.power_mode = PowerMode::Stop,
             Instruction::Halt => self.power_mode = PowerMode::Halt,
             Instruction::Di => self.ime = false,
             Instruction::Ei => self.ime = true,
 
-            Instruction::Ld(R8::HlInd, R8::HlInd) => unreachable!(),
-            Instruction::Ld(r, R8::HlInd) => self.registers.set_r8(r, bus.read(self.registers.get_hl())),
-            Instruction::Ld(R8::HlInd, r) => bus.write(self.registers.get_hl(), self.registers.get_r8(r)),
-            Instruction::Ld(dst, src) => self.registers.set_r8(dst, self.registers.get_r8(src)),
-            Instruction::LdN(r) => self.ldn(bus, r),
-            Instruction::LdhImmA => bus.write(Self::a(self.take_8(bus)), self.registers.a),
-            Instruction::LdhAImm => self.registers.a = bus.read(Self::a(self.take_8(bus))),
-            Instruction::LdhCA => bus.write(Self::a(self.registers.c), self.registers.a),
-            Instruction::LdhAC => self.registers.a = bus.read(Self::a(self.registers.c)),
+            Instruction::Ld(dst, src) => self.ld(bus, dst, src),
+            Instruction::LdImm(r) => self.ldn8(bus, r),
+            Instruction::LdhImmA => self.ldimma(bus),
+            Instruction::LdhAImm => self.ldaimm(bus),
+            Instruction::LdhCA => self.ldhca(bus),
+            Instruction::LdhAC => self.ldhac(bus),
 
-            Instruction::LdhAbsA => todo!(),
-            Instruction::LdhAAbs => todo!(),
-            Instruction::Ld16N(_) => todo!(),
-            Instruction::LdA16SP => todo!(),
-            Instruction::LdR16MemA(_) => todo!(),
-            Instruction::LdAR16Mem(_) => todo!(),
-            Instruction::LdSpHl => todo!(),
-            Instruction::LdHlSp8 => todo!(),
-            Instruction::Alu(_, R8::HlInd) => todo!(),
-            Instruction::Alu(_, _) => todo!(),
-            Instruction::AluN(_) => todo!(),
+            Instruction::LdR16MemA(rm) => self.ldr16a(bus, rm),
+            Instruction::LdAR16Mem(rm) => self.ldar16(bus, rm),
+            Instruction::LdImm16(r) => self.ldn16(bus, r),
+            Instruction::LdA16SP => self.lda16sp(bus),
+            Instruction::LdSpHl => self.ldsphl(),
+            Instruction::LdHlSp8 => self.ldhlsp8(bus),
+            Instruction::LdhAbsA => self.ldhabsa(bus),
+            Instruction::LdhAAbs => self.ldhaabs(bus),
 
+            Instruction::Alu(op, r) => self.alu(bus, op, r),
+            Instruction::AluN(op) => self.alun(bus, op),
+            Instruction::AddHl(r) => self.addhl(r),
+            Instruction::AddSpImm => self.addspimm(bus),
             Instruction::Inc(r) => self.inc8(bus, r),
             Instruction::Dec(r) => self.dec8(bus, r),
             Instruction::Inc16(r) => self.inc16(r),
             Instruction::Dec16(r) => self.dec16(r),
 
-            Instruction::AddHl(_) => todo!(),
-            Instruction::AddSpImm => todo!(),
-            Instruction::Jr(None) => todo!(),
-            Instruction::Jr(Some(_)) => todo!(),
-            Instruction::Jp(None) => todo!(),
-            Instruction::Jp(Some(_)) => todo!(),
-            Instruction::JpHl => todo!(),
-            Instruction::Call(None) => todo!(),
-            Instruction::Call(Some(_)) => todo!(),
-            Instruction::Ret(None) => todo!(),
-            Instruction::Ret(Some(_)) => todo!(),
-            Instruction::RetI => todo!(),
-            Instruction::Rst(_) => todo!(),
-            Instruction::Pop(_) => todo!(),
-            Instruction::Push(_) => todo!(),
+            Instruction::Jp(c) => self.jp(bus, c),
+            Instruction::Jr(c) => self.jr(bus, c),
+            Instruction::JpHl => self.jphl(),
+            Instruction::Call(c) => self.call(bus, c),
+            Instruction::Ret(c) => self.ret(c),
+            Instruction::RetI => self.reti(),
+            Instruction::Rst(vec) => self.rst(vec as u16),
+
+            Instruction::Push(r) => self.push(r),
+            Instruction::Pop(r) => self.pop(r),
+
             Instruction::Rcla => todo!(),
             Instruction::Rrca => todo!(),
             Instruction::Rla => todo!(),
@@ -122,19 +122,19 @@ impl Cpu {
             Instruction::Cpl => todo!(),
             Instruction::Scf => todo!(),
             Instruction::Ccf => todo!(),
-            Instruction::Shift(_, R8::HlInd) => todo!(),
+
             Instruction::Shift(_, _) => todo!(),
-            Instruction::Bit(_, R8::HlInd) => todo!(),
             Instruction::Bit(_, _) => todo!(),
-            Instruction::Res(_, R8::HlInd) => todo!(),
             Instruction::Res(_, _) => todo!(),
-            Instruction::Set(_, R8::HlInd) => todo!(),
             Instruction::Set(_, _) => todo!(),
-            Instruction::Illegal(_) => todo!(),
+
+            Instruction::Illegal(_) => (),
         }
     }
 
-    fn get_r8(&self, bus: &mut Bus, r: R8) -> u8 {
+    // ----- Registers Getter/Setter ------------------------------
+
+    fn get_r8(&self, bus: &Bus, r: R8) -> u8 {
         match r {
             R8::HlInd => bus.read(self.registers.get_hl()),
             _ => self.registers.get_r8(r),
@@ -147,72 +147,237 @@ impl Cpu {
             _ => self.registers.set_r8(r, value),
         }
     }
+    const fn get_r16(&self, r: R16) -> u16 { self.registers.get_r16(r) }
+    const fn set_r16(&mut self, r: R16, value: u16) { self.registers.set_r16(r, value); }
 
-    fn dec8(&mut self, bus: &mut Bus, r: R8) {
-        let value = self.get_r8(bus, r);
-        self.set_r8(bus, r, value.wrapping_add(1));
+    const fn condition(&self, c: Option<Cond>) -> bool {
+        match c {
+            None => true,
+            Some(Cond::Z) => self.registers.get_z() == 1,
+            Some(Cond::NZ) => self.registers.get_z() == 0,
+            Some(Cond::C) => self.registers.get_c() == 0,
+            Some(Cond::NC) => self.registers.get_c() == 1,
+        }
+    }
+
+    // ---- Load 8-bit ------------------------------
+
+    fn ld(&mut self, bus: &mut Bus, dst: R8, src: R8) {
+        let value = self.get_r8(bus, src);
+        self.set_r8(bus, dst, value)
+    }
+
+    fn ldn8(&mut self, bus: &mut Bus, r: R8) {
+        let n = self.take_pc8(bus);
+        self.set_r8(bus, r, n);
+    }
+
+    // ----- Load 16-bit ------------------------------
+
+    fn ldimma(&mut self, bus: &mut Bus) {
+        let imm = self.take_pc8(bus);
+        let addr = Self::map_high_page(imm);
+        let value = self.get_r8(bus, R8::A);
+        bus.write(addr, value);
+    }
+
+    fn ldaimm(&mut self, bus: &mut Bus) {
+        let imm = self.take_pc8(bus);
+        let addr = Self::map_high_page(imm);
+        let value = bus.read(addr);
+        self.set_r8(bus, R8::A, value)
+    }
+
+    fn ldhca(&mut self, bus: &mut Bus) {
+        let c = self.get_r8(bus, R8::C);
+        let value = Self::map_high_page(c);
+        bus.write(value, self.get_r8(bus, R8::A));
+    }
+
+    fn ldhac(&mut self, bus: &mut Bus) {
+        let a = self.get_r8(bus, R8::A);
+        let value = Self::map_high_page(a);
+        bus.write(value, self.get_r8(bus, R8::C));
+    }
+
+    fn ldr16a(&mut self, bus: &mut Bus, rm: R16Mem) {
+        let value = self.get_r8(bus, R8::A);
+        let r = rm.to_r16();
+        bus.write(self.get_r16(r), value);
+    }
+
+    fn ldar16(&mut self, bus: &mut Bus, rm: R16Mem) {
+        let r = rm.to_r16();
+        let addr = self.get_r16(r);
+        let value = bus.read(addr);
+        self.set_r8(bus, R8::A, value);
+    }
+
+    fn ldn16(&mut self, bus: &Bus, r: R16) {
+        let n = self.take_pc16(bus);
+        self.set_r16(r, n);
+    }
+
+    fn lda16sp(&mut self, bus: &mut Bus) {
+        let sp = self.get_r16(R16::SP);
+        let addr = self.take_pc16(bus);
+        bus.write(addr, (sp & 0xFF) as u8);
+        bus.write(addr.wrapping_add(1), (sp >> 8) as u8);
+    }
+
+    fn ldsphl(&mut self) {
+        let value = self.get_r16(R16::HL);
+        self.set_r16(R16::SP, value);
+    }
+
+    fn ldhlsp8(&mut self, bus: &mut Bus) {
+        let sp = self.get_r16(R16::SP);
+        let imm = self.take_pc8(bus);
+        let (result, flags) = alu::add16(sp, imm as u16, false);
+        self.set_r16(R16::HL, result);
+        self.registers.set_flags(flags, ADD_SP);
+    }
+
+    fn ldhabsa(&mut self, bus: &mut Bus) {
+        let imm = self.take_pc8(bus);
+        let addr = Self::map_high_page(imm);
+        let value = self.get_r8(bus, R8::A);
+        bus.write(addr, value);
+    }
+
+    fn ldhaabs(&mut self, bus: &mut Bus) {
+        let imm = self.take_pc8(bus);
+        let addr = Self::map_high_page(imm);
+        let value = bus.read(addr);
+        self.set_r8(bus, R8::A, value);
+    }
+
+    // ----- Alu ------------------------------
+
+    fn alu(&mut self, bus: &mut Bus, op: AluOp, r: R8) {
+        let a = self.get_r8(bus, R8::A);
+        let r = self.get_r8(bus, r);
+        let (result, flags) = op.operation()(a, r, self.registers.get_c() == 1);
+        self.set_r8(bus, R8::A, result);
+        self.registers.set_flags(flags, op.flag_spec());
+    }
+
+    fn alun(&mut self, bus: &mut Bus, op: AluOp) {
+        let a = self.get_r8(bus, R8::A);
+        let imm = self.take_pc8(bus);
+        let (result, flags) = op.operation()(a, imm, self.registers.get_c() == 1);
+        self.set_r8(bus, R8::A, result);
+        self.registers.set_flags(flags, op.flag_spec());
+    }
+
+    fn addhl(&mut self, r: R16) {
+        let hl = self.get_r16(R16::HL);
+        let r = self.get_r16(r);
+        let (result, flags) = alu::add16(hl, r, false);
+        self.set_r16(R16::HL, result);
+        self.registers.set_flags(flags, ADD_HL);
+    }
+
+    fn addspimm(&mut self, bus: &mut Bus) {
+        let sp = self.get_r16(R16::SP);
+        let imm = self.take_pc8(bus) as u16;
+        let (result, flags) = alu::add16(sp, imm, false);
+        self.set_r16(R16::SP, result);
+        self.registers.set_flags(flags, ADD_SP);
     }
 
     fn inc8(&mut self, bus: &mut Bus, r: R8) {
-        let value = self.get_r8(bus, r);
-        self.set_r8(bus, r, value.wrapping_add(1));
+        let v = self.get_r8(bus, r);
+        let (result, flags) = alu::add8(v, 1, false);
+        self.set_r8(bus, r, result);
+        self.registers.set_flags(flags, INC);
     }
 
-    fn dec16(&mut self, r: R16) {
-        let value = self.registers.get_r16(r);
-        self.registers.set_r16(r, value.wrapping_add(1));
+    fn dec8(&mut self, bus: &mut Bus, r: R8) {
+        let v = self.get_r8(bus, r);
+        let (result, flags) = alu::sub8(v, 1, false);
+        self.set_r8(bus, r, result);
+        self.registers.set_flags(flags, DEC);
     }
 
     fn inc16(&mut self, r: R16) {
-        let value = self.registers.get_r16(r);
-        self.registers.set_r16(r, value.wrapping_add(1));
+        let v = self.get_r16(r);
+        let (result, flags) = alu::add16(v, 1, false);
+        self.set_r16(r, result);
+        self.registers.set_flags(flags, NOF);
     }
 
-    fn ldn(&mut self, bus: &Bus, r: R8) {
-        let n = self.take_8(bus);
-        self.registers.set_r8(r, n);
+    fn dec16(&mut self, r: R16) {
+        let v = self.get_r16(r);
+        let (result, flags) = alu::sub16(v, 1, false);
+        self.set_r16(r, result);
+        self.registers.set_flags(flags, NOF);
     }
+
+    // ----- Jump ------------------------------
+
+    fn jp(&mut self, bus: &mut Bus, c: Option<Cond>) {
+        if !self.condition(c) {
+            return;
+        }
+        let addr = self.take_pc16(bus);
+        self.pc = addr;
+    }
+
+    fn jr(&mut self, bus: &mut Bus, c: Option<Cond>) {
+        if !self.condition(c) {
+            return;
+        }
+        let offset = self.take_pc8(bus) as i8 as i32;
+        self.pc = (self.pc as i32).wrapping_add(offset) as u16;
+    }
+
+    const fn jphl(&mut self) { self.pc = self.get_r16(R16::HL); }
+
+    fn call(&mut self, bus: &mut Bus, c: Option<Cond>) {
+        if !self.condition(c) {
+            return;
+        }
+        let addr = self.take_pc16(bus);
+        self.rst(addr)
+    }
+
+    fn ret(&mut self, c: Option<Cond>) {
+        if !self.condition(c) {
+            return;
+        }
+        self.pc = self.stack.pop().expect("StackUnderflow");
+    }
+
+    fn reti(&mut self) {
+        self.ime = true;
+        self.ret(None);
+    }
+
+    fn rst(&mut self, vec: u16) {
+        self.stack.push(self.pc);
+        self.pc = vec
+    }
+
+    fn push(&mut self, r: R16Stk) {
+        let value = self.registers.get_r16stck(r);
+        self.stack.push(value);
+    }
+
+    fn pop(&mut self, r: R16Stk) {
+        let value = self.registers.get_r16stck(r);
+        self.stack.push(value);
+    }
+
+    // ----- Accumulator/Flag ------------------------------
+
+    // ----- Prefix ------------------------------
 }
 
-pub fn add8(a: u8, b: u8, carry: bool) -> (u8, Flags) {
-    let c = carry as u8;
-    let sum = a as u16 + b as u16 + c as u16;
-    let result = sum as u8;
-
-    let flags = Flags {
-        z: result == 0,
-        n: false, h: (a & 0x0F) + (b & 0x0F) + c > 0x0F,
-        c: sum > 0xFF,
-    };
-
-    (result, flags)
-}
-
-pub fn sub8(a: u8, b: u8, carry: bool) -> (u8, Flags) { ... }
-pub fn and8(a: u8, b: u8) -> (u8, Flags) { ... }
-pub fn rlc(v: u8) -> (u8, Flags) { ... }
-pub fn add16(a: u16, b: u16) -> (u16, Flags) { ... } 
-
-const INC: FlagSpec = FlagSpec::parse("R0R-");
-const ADD_HL: FlagSpec = FlagSpec::parse("-0RR");
-const ADD_SP: FlagSpec = FlagSpec::parse("00RR");
-const RLCA: FlagSpec = FlagSpec::parse("000R");
-const CB_RLC: FlagSpec = FlagSpec::parse("R00R");
-const AND: FlagSpec = FlagSpec::parse("R010");
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Fault {
-    StackOverflow,
-    StackUnderflow,
-}
-
-// impl AluOp {
-//     pub const fn flag_spec(self) -> FlagSpec {
-//         match self {
-//             AluOp::Add | AluOp::Adc => FlagSpec::parse("Z0HC"),
-//             AluOp::Sub | AluOp::Sbc | AluOp::Cp => FlagSpec::parse("Z1HC"),
-//             AluOp::And => FlagSpec::parse("Z010"),
-//             AluOp::Xor | AluOp::Or => FlagSpec::parse("Z000"),
-//         }
-//     }
-// }
+const DEC: FlagSpec = FlagSpec::znhc("R1R-");
+const INC: FlagSpec = FlagSpec::znhc("R0R-");
+const ADD_HL: FlagSpec = FlagSpec::znhc("-0RR");
+const ADD_SP: FlagSpec = FlagSpec::znhc("00RR");
+const RLCA: FlagSpec = FlagSpec::znhc("000R");
+const CB_RLC: FlagSpec = FlagSpec::znhc("R00R");
+const NOF: FlagSpec = FlagSpec::znhc("----");

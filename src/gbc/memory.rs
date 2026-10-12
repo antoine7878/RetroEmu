@@ -7,7 +7,7 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn new(_rom: &[u8]) -> Self {
+    pub const fn new(_rom: &[u8]) -> Self {
         let rom = [0; MEMORY_SIZE];
         Self { rom }
     }

@@ -6,7 +6,7 @@ pub enum R8 { B, C, D, E, H, L, HlInd, A }
 impl R8 {
     const ALL: [Self; 8] = [Self::B, Self::C, Self::D, Self::E, Self::H, Self::L, Self::HlInd, Self::A];
     const FMT: [&str; 8] = ["b", "c", "d", "e", "h", "l", "[hl]", "a"];
-    fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
+    const fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
 }
 
 #[rustfmt::skip]
@@ -16,17 +16,17 @@ pub enum R16 { BC, DE, HL, SP }
 impl R16 {
     const ALL: [Self; 4] = [Self::BC, Self::DE, Self::HL, Self::SP];
     const FMT: [&str; 4] = ["bc", "de", "hl", "sp"];
-    fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
+    const fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
 }
 
 #[rustfmt::skip]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum R16Stk { BC = 0, DE = 1, HL = 2, AF = 3 }
+pub enum R16Stk { BC, DE , HL , AF }
 
 impl R16Stk {
     const ALL: [Self; 4] = [Self::BC, Self::DE, Self::HL, Self::AF];
     const FMT: [&str; 4] = ["bc", "de", "hl", "af"];
-    fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
+    const fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
 }
 
 #[rustfmt::skip]
@@ -36,7 +36,14 @@ pub enum R16Mem { BC, DE, HlInc, HlDec }
 impl R16Mem {
     const ALL: [Self; 4] = [Self::BC, Self::DE, Self::HlInc, Self::HlDec];
     const FMT: [&str; 4] = ["[bc]", "[be]", "[hl-]", "[hl+]"];
-    fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
+    const fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
+    pub const fn to_r16(&self) -> R16 {
+        match self {
+            R16Mem::BC => R16::BC,
+            R16Mem::DE => R16::DE,
+            R16Mem::HlDec | R16Mem::HlInc => R16::HL,
+        }
+    }
 }
 
 #[rustfmt::skip]
@@ -46,7 +53,7 @@ pub enum Cond { NZ, Z, NC, C }
 impl Cond {
     const ALL: [Self; 4] = [Self::NZ, Self::Z, Self::NC, Self::C];
     const FMT: [&str; 4] = ["nz", "z", "nc", "c"];
-    fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
+    const fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
 }
 
 #[rustfmt::skip]
@@ -56,7 +63,7 @@ pub enum AluOp { Add, Adc, Sub, Sbc, And, Xor, Or, Cp }
 impl AluOp {
     const ALL: [Self; 8] = [Self::Add, Self::Adc, Self::Sub, Self::Sbc, Self::And, Self::Xor, Self::Or, Self::Cp];
     const FMT: [&str; 8] = ["add", "adc", "sub", "sbc", "and", "xor", "or", "cp"];
-    fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
+    const fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
 }
 
 #[rustfmt::skip]
@@ -66,7 +73,7 @@ pub enum ShiftOp { Rlc, Rrc, Rl, Rr, Sla, Sra, Swap, Srl }
 impl ShiftOp {
     const ALL: [Self; 8] = [Self::Rlc, Self::Rrc, Self::Rl, Self::Rr, Self::Sla, Self::Sra, Self::Swap, Self::Srl];
     const FMT: [&str; 8] = ["rlc", "rrc", "rl", "rr", "sla", "sra", "swap", "srl"];
-    fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
+    const fn oct(o: u8) -> Self { Self::ALL[(o & 0b111) as usize] }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -80,7 +87,7 @@ pub enum Instruction {
 
     // 8-bit loads
     Ld(R8, R8),
-    LdN(R8),
+    LdImm(R8),
     LdhImmA,
     LdhAImm,
     LdhCA,
@@ -89,12 +96,12 @@ pub enum Instruction {
     LdhAAbs,
 
     // 16-bit loads
-    Ld16N(R16),
-    LdA16SP,
-    LdR16MemA(R16Mem),
     LdAR16Mem(R16Mem),
-    LdHlSp8,
+    LdR16MemA(R16Mem),
+    LdImm16(R16),
+    LdA16SP,
     LdSpHl,
+    LdHlSp8,
 
     // Arithmetic
     Alu(AluOp, R8),
@@ -139,7 +146,7 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    pub fn decode(op_code: u8) -> Self {
+    pub const fn decode(op_code: u8) -> Self {
         match op_code >> 6 {
             0 => Self::block0(op_code),
             1 => Self::block1(op_code),
@@ -149,16 +156,16 @@ impl Instruction {
         }
     }
 
-    fn milo(op_code: u8) -> (u8, u8) { ((op_code & 0o070) >> 3, op_code & 0o007) }
+    const fn milo(op_code: u8) -> (u8, u8) { ((op_code & 0o070) >> 3, op_code & 0o007) }
 
-    fn block0(op_code: u8) -> Self {
+    const fn block0(op_code: u8) -> Self {
         match Self::milo(op_code) {
             (0, 0) => Instruction::Nop,
             (1, 0) => Instruction::Stop,
             (2, 0) => Instruction::LdA16SP,
             (3, 0) => Instruction::Jr(None),
             (c, 0) => Instruction::Jr(Some(Cond::oct(c >> 2))),
-            (r @ (0 | 2 | 4 | 6), 1) => Instruction::Ld16N(R16::oct(r)),
+            (r @ (0 | 2 | 4 | 6), 1) => Instruction::LdImm16(R16::oct(r)),
             (r, 1) => Instruction::AddHl(R16::oct(r)),
             (o @ (0 | 2 | 4 | 6), 2) => Instruction::LdR16MemA(R16Mem::oct(o)),
             (o, 2) => Instruction::LdAR16Mem(R16Mem::oct(o)),
@@ -166,7 +173,7 @@ impl Instruction {
             (r, 3) => Instruction::Dec16(R16::oct(r)),
             (r, 4) => Instruction::Inc(R8::oct(r)),
             (r, 5) => Instruction::Dec(R8::oct(r)),
-            (r, 6) => Instruction::LdN(R8::oct(r)),
+            (r, 6) => Instruction::LdImm(R8::oct(r)),
             (0, 7) => Instruction::Rcla,
             (1, 7) => Instruction::Rrca,
             (2, 7) => Instruction::Rla,
@@ -179,7 +186,7 @@ impl Instruction {
         }
     }
 
-    fn block1(op_code: u8) -> Self {
+    const fn block1(op_code: u8) -> Self {
         match Self::milo(op_code) {
             (6, 6) => Instruction::Halt,
             (dst @ 0..8, src @ 0..8) => Instruction::Ld(R8::oct(dst), R8::oct(src)),
@@ -187,14 +194,14 @@ impl Instruction {
         }
     }
 
-    fn block2(op_code: u8) -> Self {
+    const fn block2(op_code: u8) -> Self {
         match Self::milo(op_code) {
             (op @ 0..8, r @ 0..8) => Instruction::Alu(AluOp::oct(op), R8::oct(r)),
             _ => Instruction::Illegal(op_code),
         }
     }
 
-    fn block3(op_code: u8) -> Self {
+    const fn block3(op_code: u8) -> Self {
         match Self::milo(op_code) {
             (c @ 0..4, 0) => Instruction::Ret(Some(Cond::oct(c))),
             (4, 0) => Instruction::LdhImmA,
@@ -224,7 +231,7 @@ impl Instruction {
         }
     }
 
-    fn prefix(op_code: u8) -> Self {
+    const fn prefix(op_code: u8) -> Self {
         let (mi, lo) = Self::milo(op_code);
         match (op_code >> 3, mi, lo) {
             (0, o @ 0..8, r @ 0..8) => Instruction::Shift(ShiftOp::oct(o), R8::oct(r)),
@@ -235,7 +242,7 @@ impl Instruction {
         }
     }
 
-    pub fn shape(&self) -> (u8, u8) {
+    pub const fn shape(&self) -> (u8, u8) {
         match self {
             Instruction::Nop => (1, 4),
             Instruction::Stop => (2, 4),
@@ -244,15 +251,15 @@ impl Instruction {
             Instruction::Ei => (1, 4),
             Instruction::Ld(R8::HlInd, _) | Instruction::Ld(_, R8::HlInd) => (1, 8),
             Instruction::Ld(_, _) => (1, 4),
-            Instruction::LdN(R8::HlInd) => (2, 12),
-            Instruction::LdN(_) => (2, 8),
+            Instruction::LdImm(R8::HlInd) => (2, 12),
+            Instruction::LdImm(_) => (2, 8),
             Instruction::LdhImmA => (2, 12),
             Instruction::LdhAImm => (2, 12),
             Instruction::LdhCA => (1, 8),
             Instruction::LdhAC => (1, 8),
             Instruction::LdhAbsA => (3, 16),
             Instruction::LdhAAbs => (3, 16),
-            Instruction::Ld16N(_) => (3, 12),
+            Instruction::LdImm16(_) => (3, 12),
             Instruction::LdA16SP => (3, 20),
             Instruction::LdR16MemA(_) => (1, 8),
             Instruction::LdAR16Mem(_) => (1, 8),
@@ -301,7 +308,8 @@ impl Instruction {
             Instruction::Illegal(_) => (1, 4),
         }
     }
-    pub fn cycle_count(&self) -> u32 { 1 }
+
+    pub const fn cycle_count(&self) -> u32 { 1 }
 }
 
 impl fmt::Display for Instruction {
@@ -313,14 +321,14 @@ impl fmt::Display for Instruction {
             Instruction::Di => write!(f, "di"),
             Instruction::Ei => write!(f, "ei"),
             Instruction::Ld(dst, src) => write!(f, "ld {dst}, {src}"),
-            Instruction::LdN(r) => write!(f, "ld {r}, n8"),
+            Instruction::LdImm(r) => write!(f, "ld {r}, n8"),
             Instruction::LdhImmA => write!(f, "ldh [a16], a"),
             Instruction::LdhAImm => write!(f, "ldh a, [a16]"),
             Instruction::LdhCA => write!(f, "ldh c a"),
             Instruction::LdhAC => write!(f, "ldh a c"),
             Instruction::LdhAbsA => write!(f, "ldh [a8], a"),
             Instruction::LdhAAbs => write!(f, "ldh a, [a8]"),
-            Instruction::Ld16N(r) => write!(f, "ld {r}, n16"),
+            Instruction::LdImm16(r) => write!(f, "ld {r}, n16"),
             Instruction::LdA16SP => write!(f, "ld [a16], sp"),
             Instruction::LdR16MemA(r) => write!(f, "ld {r}, a"),
             Instruction::LdAR16Mem(r) => write!(f, "ld a, {r}"),

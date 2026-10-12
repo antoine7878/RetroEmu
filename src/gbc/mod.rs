@@ -1,3 +1,4 @@
+mod alu;
 mod audio;
 mod bus;
 mod config;
