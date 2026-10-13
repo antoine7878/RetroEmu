@@ -1,17 +1,22 @@
+use super::cart::Cartridge;
 use super::io::IO;
 use super::memory::Memory;
+use super::ppu::Ppu;
 
+#[derive(Default)]
 pub struct Bus {
     memory: Memory,
+    cart: Cartridge,
+    ppu: Ppu,
     io: IO,
 }
 
 impl Bus {
-    pub fn new(rom: &[u8]) -> Self { Self { memory: Memory::new(rom), io: IO::default() } }
+    pub fn new(rom: &[u8]) -> Self { Self { cart: Cartridge::new(rom), ..Default::default() } }
 
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
-            0x0000..0x8000 => todo!("Cartridge"),
+            0x0000..0x8000 => self.cart.read(addr),
             0x8000..0xA000 => todo!("Vram"),
             0xA000..0xC000 => todo!("Cram"),
             0xC000..0xE000 => todo!("Wram"),
@@ -25,7 +30,7 @@ impl Bus {
 
     pub fn write(&mut self, addr: u16, value: u8) {
         match addr {
-            0x0000..0x8000 => todo!("Cartridge"),
+            0x0000..0x8000 => (),
             0x8000..0xA000 => todo!("Vram"),
             0xA000..0xC000 => todo!("Cram"),
             0xC000..0xE000 => todo!("Wram"),

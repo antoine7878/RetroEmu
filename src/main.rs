@@ -4,6 +4,8 @@ mod gbc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs, process};
 
+use gbc::GameBoy;
+
 use crate::gbc::Config;
 
 fn main() {
@@ -18,11 +20,10 @@ fn main() {
     }
 }
 
-fn run(_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    Ok(())
-    // let rom = fs::read(path).map_err(|e| format!("{path}: {e}"))?;
-    // let seed = SystemTime::now().duration_since(UNIX_EPOCH)?.subsec_nanos();
-    // let config = Config { rng_seed: seed, ..Config::default() };
-    // let mut chip = Chip8::new(&rom, config)?;
-    // frontend::run(&mut chip)
+fn run(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let rom = fs::read(path).map_err(|e| format!("{path}: {e}"))?;
+    let seed = SystemTime::now().duration_since(UNIX_EPOCH)?.subsec_nanos();
+    let config = Config { rng_seed: seed, ..Config::default() };
+    let mut chip = GameBoy::new(&rom, config);
+    frontend::run(&mut chip)
 }

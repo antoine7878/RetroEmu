@@ -1,11 +1,9 @@
-use super::alu;
 use super::bus::Bus;
-use super::flag::FlagSpec;
-use super::instruction::{AluOp, Cond, Instruction, R8, R16, R16Mem, R16Stk};
+use super::flag::{FlagSpec, Flags};
+use super::instruction::{AluOp, Cond, Instruction, R8, R16, R16Mem, R16Stk, ShiftOp};
 use super::memory::PROGRAM_START;
 use super::registers::Registers;
-
-// const STACK_SIZE: usize = 16;
+use super::{alu, shift};
 
 const CPU_CLOCK: u32 = 1 << 22;
 const CYCLE_PER_SCAN_LINE: u32 = 456;
@@ -114,21 +112,21 @@ impl Cpu {
             Instruction::Push(r) => self.push(r),
             Instruction::Pop(r) => self.pop(r),
 
-            Instruction::Rcla => todo!(),
-            Instruction::Rrca => todo!(),
-            Instruction::Rla => todo!(),
-            Instruction::Rra => todo!(),
-            Instruction::Dda => todo!(),
-            Instruction::Cpl => todo!(),
-            Instruction::Scf => todo!(),
-            Instruction::Ccf => todo!(),
+            Instruction::Rlca => self.rlca(),
+            Instruction::Rrca => self.rrca(),
+            Instruction::Rla => self.rla(),
+            Instruction::Rra => self.rra(),
+            Instruction::Daa => self.daa(),
+            Instruction::Cpl => self.cpl(),
+            Instruction::Scf => self.scf(),
+            Instruction::Ccf => self.ccf(),
 
-            Instruction::Shift(_, _) => todo!(),
-            Instruction::Bit(_, _) => todo!(),
-            Instruction::Res(_, _) => todo!(),
-            Instruction::Set(_, _) => todo!(),
+            Instruction::Shift(op, r) => self.shift(bus, op, r),
+            Instruction::Bit(i, r) => self.bit(bus, i, r),
+            Instruction::Res(i, r) => self.res(bus, i, r),
+            Instruction::Set(i, r) => self.set(bus, i, r),
 
-            Instruction::Illegal(_) => (),
+            Instruction::Illegal(i) => panic!("Illegal instruction: {i}"),
         }
     }
 
@@ -369,11 +367,102 @@ impl Cpu {
         self.stack.push(value);
     }
 
+    // ----- Rotate ------------------------------
+
+    fn rlca(&mut self) {
+        let a = self.registers.get_a();
+        let (value, c) = shift::rlc(a);
+        self.registers.set_a(value);
+        let flags = Flags { c, ..Default::default() };
+        self.registers.set_flags(flags, RLCA);
+    }
+
+    fn rrca(&mut self) {
+        let a = self.registers.get_a();
+        let (value, c) = shift::rrc(a);
+        self.registers.set_a(value);
+        let flags = Flags { c, ..Default::default() };
+        self.registers.set_flags(flags, RLCA);
+    }
+
+    fn rla(&mut self) {
+        let a = self.registers.get_a();
+        let (value, c) = shift::rl(a, self.registers.get_c());
+        self.registers.set_a(value);
+        let flags = Flags { c, ..Default::default() };
+        self.registers.set_flags(flags, RLCA);
+    }
+
+    fn rra(&mut self) {
+        let a = self.registers.get_a();
+        let (value, c) = shift::rr(a, self.registers.get_c());
+        self.registers.set_a(value);
+        let flags = Flags { c, ..Default::default() };
+        self.registers.set_flags(flags, RLCA);
+    }
+
+    fn cpl(&mut self) {
+        let value = !self.registers.get_a();
+        self.registers.set_a(value);
+        let flags = Flags { n: true, h: true, ..Default::default() };
+        self.registers.set_flags(flags, CPL);
+    }
+
     // ----- Accumulator/Flag ------------------------------
 
+    #[rustfmt::skip]
+    fn daa(&mut self) {
+        let mut adj = 0;
+        let Flags { n, h, mut c, .. } = self.registers.get_flags();
+        let a = self.registers.get_a();
+        let value = if n {
+            if h { adj += 0x06 }
+            if c { adj += 0x60 }
+            a.wrapping_sub(adj)
+        } else {
+            if h || a & 0x0F > 0x09 { adj += 0x06 }
+            if c || a > 0x99 { adj += 0x60; c = true;}
+            a.wrapping_add(adj)
+        };
+        self.registers.set_a(value);
+        let flags = Flags { z: value == 0, c, ..Default::default() };
+        self.registers.set_flags(flags, DAA);
+    }
+
+    fn scf(&mut self) { self.registers.set_c() }
+
+    fn ccf(&mut self) { self.registers.set_h() }
+
     // ----- Prefix ------------------------------
+
+    fn shift(&mut self, bus: &mut Bus, op: ShiftOp, r: R8) {
+        let val = self.get_r8(bus, r);
+        let (value, c) = shift::shift(op, val, self.registers.get_c());
+        self.set_r8(bus, r, value);
+        let flags = Flags { z: value == 0, c, ..Default::default() };
+        self.registers.set_flags(flags, SHIFT);
+    }
+
+    fn bit(&mut self, bus: &mut Bus, i: u8, r: R8) {
+        let r = self.get_r8(bus, r);
+        let value = (r >> i) & 1;
+        let flags = Flags { z: value == 0, n: false, h: true, ..Default::default() };
+        self.registers.set_flags(flags, BIT);
+    }
+
+    fn res(&mut self, bus: &mut Bus, i: u8, r: R8) {
+        let value = self.get_r8(bus, r) & !(1 << i);
+        self.set_r8(bus, r, value);
+    }
+
+    fn set(&mut self, bus: &mut Bus, i: u8, r: R8) {
+        let value = self.get_r8(bus, r) | (1 << i);
+        self.set_r8(bus, r, value);
+    }
 }
 
+const DAA: FlagSpec = FlagSpec::znhc("R-0R");
+const CPL: FlagSpec = FlagSpec::znhc("-RR-");
 const DEC: FlagSpec = FlagSpec::znhc("R1R-");
 const INC: FlagSpec = FlagSpec::znhc("R0R-");
 const ADD_HL: FlagSpec = FlagSpec::znhc("-0RR");
@@ -381,3 +470,5 @@ const ADD_SP: FlagSpec = FlagSpec::znhc("00RR");
 const RLCA: FlagSpec = FlagSpec::znhc("000R");
 const CB_RLC: FlagSpec = FlagSpec::znhc("R00R");
 const NOF: FlagSpec = FlagSpec::znhc("----");
+const SHIFT: FlagSpec = FlagSpec::znhc("R00R");
+const BIT: FlagSpec = FlagSpec::znhc("R01-");

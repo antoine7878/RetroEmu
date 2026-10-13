@@ -1,7 +1,9 @@
 mod alu;
 mod audio;
 mod bus;
+mod cart;
 mod config;
+mod console;
 mod cpu;
 mod display;
 mod error;
@@ -13,8 +15,11 @@ mod joypad;
 mod keypad;
 mod link;
 mod memory;
+mod ppu;
 mod registers;
+mod shift;
 mod timer;
 
-pub use config::Config;
+pub use config::{Config, FRAME_RATE};
+pub use console::GameBoy;
 pub use display::{HEIGHT, WIDTH};

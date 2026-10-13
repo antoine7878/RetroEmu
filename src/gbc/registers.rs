@@ -17,6 +17,9 @@ pub struct Registers {
 }
 
 impl Registers {
+    pub const fn get_a(&self) -> u8 { self.a }
+    pub const fn set_a(&mut self, value: u8) { self.a = value; }
+
     const fn merge_reg(hi: u8, lo: u8) -> u16 { (hi as u16) << 8 | lo as u16 }
     pub const fn get_af(&self) -> u16 { Self::merge_reg(self.a, self.f) }
     pub const fn get_bc(&self) -> u16 { Self::merge_reg(self.b, self.c) }
@@ -41,6 +44,12 @@ impl Registers {
     pub const fn get_n(&self) -> u8 { (self.f >> SUB_FLAG) & 1 }
     pub const fn get_h(&self) -> u8 { (self.f >> HALF_CARRY_FLAG) & 1 }
     pub const fn get_c(&self) -> u8 { (self.f >> CARRY_FLAG) & 1 }
+    pub const fn get_flags(&self) -> Flags {
+        Flags { z: self.get_z() == 1, n: self.get_n() == 1, h: self.get_h() == 1, c: self.get_c() == 1 }
+    }
+
+    pub const fn set_c(&mut self) { self.f |= 1 << CARRY_FLAG }
+    pub const fn set_h(&mut self) { self.f |= 1 << HALF_CARRY_FLAG }
 
     pub const fn get_r8(&self, r: R8) -> u8 {
         match r {

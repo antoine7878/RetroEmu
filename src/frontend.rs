@@ -2,16 +2,15 @@ use std::error::Error;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use sdl2::audio::{AudioQueue, AudioSpecDesired};
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::PixelFormatEnum;
 
-use crate::gbc::{Chip8, FRAME_RATE, HEIGHT, SAMPLE_RATE, WIDTH};
+use crate::gbc::{FRAME_RATE, GameBoy, HEIGHT, WIDTH};
 
 const SCALE: u32 = 12;
 const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / FRAME_RATE as u64);
-const MAX_QUEUED_SAMPLES: u32 = SAMPLE_RATE / 10;
+// const MAX_QUEUED_SAMPLES: u32 = SAMPLE_RATE / 10;
 
 const ON_COLOR: [u8; 3] = [0xFF, 0xFF, 0xFF];
 const OFF_COLOR: [u8; 3] = [0x00, 0x00, 0x00];
@@ -35,59 +34,32 @@ const KEYMAP: [(Scancode, u8); 16] = [
     (Scancode::V, 0xF),
 ];
 
-pub fn run(chip: &mut Chip8) -> Result<(), Box<dyn Error>> {
+pub fn run(game_boy: &mut GameBoy) -> Result<(), Box<dyn Error>> {
     let sdl = sdl2::init()?;
     let mut event_pump = sdl.event_pump()?;
 
-    let window = sdl
-        .video()?
-        .window("CHIP-8", WIDTH as u32 * SCALE, HEIGHT as u32 * SCALE)
-        .position_centered()
-        .build()?;
+    let window =
+        sdl.video()?.window("RetoEmu", WIDTH as u32 * SCALE, HEIGHT as u32 * SCALE).position_centered().build()?;
     let mut canvas = window.into_canvas().present_vsync().build()?;
     let texture_creator = canvas.texture_creator();
     let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, WIDTH as u32, HEIGHT as u32)?;
-
-    let spec = AudioSpecDesired {
-        freq: Some(SAMPLE_RATE as i32),
-        channels: Some(1),
-        samples: None,
-    };
-    let audio: AudioQueue<f32> = sdl.audio()?.open_queue(None, &spec)?;
-    audio.resume();
-    let mut samples = Vec::new();
 
     let mut next_frame = Instant::now();
     'running: loop {
         next_frame += FRAME_TIME;
 
         for event in event_pump.poll_iter() {
-            if let Event::Quit { .. }
-            | Event::KeyDown {
-                scancode: Some(Scancode::Escape),
-                ..
-            } = event
-            {
+            if let Event::Quit { .. } | Event::KeyDown { scancode: Some(Scancode::Escape), .. } = event {
                 break 'running;
             }
         }
         let keyboard = event_pump.keyboard_state();
-        for (scancode, key) in KEYMAP {
-            chip.set_key(key, keyboard.is_scancode_pressed(scancode));
-        }
 
-        chip.run_frame()?;
+        game_boy.run_frame();
 
-        samples.clear();
-        chip.drain_audio(&mut samples);
-        let queued = audio.size() / size_of::<f32>() as u32;
-        if queued < MAX_QUEUED_SAMPLES {
-            audio.queue_audio(&samples)?;
-        }
-
-        if chip.take_redraw() {
+        if game_boy.take_redraw() {
             texture.with_lock(None, |buffer, pitch| {
-                for (y, row) in chip.pixels().chunks(WIDTH).enumerate() {
+                for (y, row) in game_boy.pixels().chunks(WIDTH).enumerate() {
                     for (x, &lit) in row.iter().enumerate() {
                         let offset = y * pitch + x * 3;
                         let color = if lit != 0 { ON_COLOR } else { OFF_COLOR };

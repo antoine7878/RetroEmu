@@ -1,3 +1,5 @@
+pub const FRAME_RATE: u32 = 60;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Config {
     pub instructions_per_frame: u32,
@@ -5,10 +7,5 @@ pub struct Config {
 }
 
 impl Default for Config {
-    fn default() -> Self {
-        Self {
-            instructions_per_frame: 69905,
-            rng_seed: 0x2545_F491,
-        }
-    }
+    fn default() -> Self { Self { instructions_per_frame: 69905, rng_seed: 0x2545_F491 } }
 }
