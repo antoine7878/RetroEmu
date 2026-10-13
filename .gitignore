@@ -4,3 +4,6 @@
 chip8-roms
 chip8-test-suite
 test-roms/
+
+gb-test-roms/
+test-roms/
