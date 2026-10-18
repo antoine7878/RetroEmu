@@ -10,29 +10,28 @@ use crate::gbc::{FRAME_RATE, GameBoy, HEIGHT, WIDTH};
 
 const SCALE: u32 = 12;
 const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / FRAME_RATE as u64);
-// const MAX_QUEUED_SAMPLES: u32 = SAMPLE_RATE / 10;
 
 const ON_COLOR: [u8; 3] = [0xFF, 0xFF, 0xFF];
 const OFF_COLOR: [u8; 3] = [0x00, 0x00, 0x00];
 
-const KEYMAP: [(Scancode, u8); 16] = [
-    (Scancode::Num1, 0x1),
-    (Scancode::Num2, 0x2),
-    (Scancode::Num3, 0x3),
-    (Scancode::Num4, 0xC),
-    (Scancode::Q, 0x4),
-    (Scancode::W, 0x5),
-    (Scancode::E, 0x6),
-    (Scancode::R, 0xD),
-    (Scancode::A, 0x7),
-    (Scancode::S, 0x8),
-    (Scancode::D, 0x9),
-    (Scancode::F, 0xE),
-    (Scancode::Z, 0xA),
-    (Scancode::X, 0x0),
-    (Scancode::C, 0xB),
-    (Scancode::V, 0xF),
-];
+// const KEYMAP: [(Scancode, u8); 16] = [
+//     (Scancode::Num1, 0x1),
+//     (Scancode::Num2, 0x2),
+//     (Scancode::Num3, 0x3),
+//     (Scancode::Num4, 0xC),
+//     (Scancode::Q, 0x4),
+//     (Scancode::W, 0x5),
+//     (Scancode::E, 0x6),
+//     (Scancode::R, 0xD),
+//     (Scancode::A, 0x7),
+//     (Scancode::S, 0x8),
+//     (Scancode::D, 0x9),
+//     (Scancode::F, 0xE),
+//     (Scancode::Z, 0xA),
+//     (Scancode::X, 0x0),
+//     (Scancode::C, 0xB),
+//     (Scancode::V, 0xF),
+// ];
 
 pub fn run(game_boy: &mut GameBoy) -> Result<(), Box<dyn Error>> {
     let sdl = sdl2::init()?;
@@ -53,7 +52,8 @@ pub fn run(game_boy: &mut GameBoy) -> Result<(), Box<dyn Error>> {
                 break 'running;
             }
         }
-        let keyboard = event_pump.keyboard_state();
+
+        // let keyboard = event_pump.keyboard_state();
 
         game_boy.run_frame();
 

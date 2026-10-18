@@ -5,7 +5,6 @@ mod cart;
 mod config;
 mod console;
 mod cpu;
-mod display;
 mod error;
 mod flag;
 mod instruction;
@@ -22,4 +21,4 @@ mod timer;
 
 pub use config::{Config, FRAME_RATE};
 pub use console::GameBoy;
-pub use display::{HEIGHT, WIDTH};
+pub use ppu::{HEIGHT, WIDTH};

@@ -309,7 +309,71 @@ impl Instruction {
         }
     }
 
-    pub const fn cycle_count(&self) -> u32 { 1 }
+    pub const fn cycle_count(&self, taken: bool) -> u64 {
+        match self {
+            Instruction::Nop
+            | Instruction::Stop
+            | Instruction::Halt
+            | Instruction::Di
+            | Instruction::Ei
+            | Instruction::Ld(_, _)
+            | Instruction::LdImm(_)
+            | Instruction::LdhImmA
+            | Instruction::LdhAImm
+            | Instruction::LdhCA
+            | Instruction::LdhAC
+            | Instruction::LdhAbsA
+            | Instruction::LdhAAbs
+            | Instruction::LdImm16(_)
+            | Instruction::LdA16SP
+            | Instruction::LdR16MemA(_)
+            | Instruction::LdAR16Mem(_)
+            | Instruction::Alu(_, _)
+            | Instruction::AluN(_)
+            | Instruction::Rlca
+            | Instruction::Rrca
+            | Instruction::Rla
+            | Instruction::Rra
+            | Instruction::Daa
+            | Instruction::Cpl
+            | Instruction::Scf
+            | Instruction::Ccf
+            | Instruction::Shift(_, _)
+            | Instruction::Bit(_, _)
+            | Instruction::Res(_, _)
+            | Instruction::Set(_, _)
+            | Instruction::Illegal(_)
+            | Instruction::Pop(_)
+            | Instruction::JpHl => 0,
+
+            Instruction::Inc16(_)
+            | Instruction::Dec16(_)
+            | Instruction::Inc(_)
+            | Instruction::Dec(_)
+            | Instruction::LdSpHl
+            | Instruction::LdHlSp8
+            | Instruction::AddSpImm
+            | Instruction::AddHl(_)
+            | Instruction::Push(_)
+            | Instruction::RetI
+            | Instruction::Rst(_)
+            | Instruction::Jr(None)
+            | Instruction::Jp(None)
+            | Instruction::Call(None) => 1,
+
+            Instruction::Ret(None) => 2,
+
+            Instruction::Jr(Some(_)) if taken => 1,
+            Instruction::Jp(Some(_)) if taken => 1,
+            Instruction::Call(Some(_)) if taken => 1,
+            Instruction::Ret(Some(_)) if taken => 2,
+
+            Instruction::Jr(Some(_)) => 0,
+            Instruction::Jp(Some(_)) => 0,
+            Instruction::Call(Some(_)) => 0,
+            Instruction::Ret(Some(_)) => 1,
+        }
+    }
 }
 
 impl fmt::Display for Instruction {

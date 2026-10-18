@@ -27,8 +27,6 @@ pub struct Cpu {
     v: [u8; 16],
     i: u16,
     pc: u16,
-    stack: Vec<u16>,
-    sp: usize,
     power_mode: PowerMode,
     ime: bool,
     registers: Registers,
@@ -40,8 +38,6 @@ impl Cpu {
             v: [0; 16],
             i: 0,
             pc: PROGRAM_START,
-            stack: Vec::new(),
-            sp: 0,
             power_mode: PowerMode::default(),
             ime: false,
             registers: Registers::default(),
@@ -62,13 +58,14 @@ impl Cpu {
 
     fn map_high_page(addr: u8) -> u16 { 0xFF00 | addr as u16 }
 
-    pub fn step(&mut self, bus: &mut Bus) {
+    pub fn step(&mut self, bus: &mut Bus) -> u64 {
         let opcode = self.take_pc8(bus);
         let instruction = Instruction::decode(opcode);
         self.execute(instruction, bus)
     }
 
-    fn execute(&mut self, instruction: Instruction, bus: &mut Bus) {
+    fn execute(&mut self, instruction: Instruction, bus: &mut Bus) -> u64 {
+        let mut taken = false;
         match instruction {
             Instruction::Nop => (),
             Instruction::Stop => self.power_mode = PowerMode::Stop,
@@ -101,16 +98,16 @@ impl Cpu {
             Instruction::Inc16(r) => self.inc16(r),
             Instruction::Dec16(r) => self.dec16(r),
 
-            Instruction::Jp(c) => self.jp(bus, c),
-            Instruction::Jr(c) => self.jr(bus, c),
+            Instruction::Jp(c) => taken = self.jp(bus, c),
+            Instruction::Jr(c) => taken = self.jr(bus, c),
+            Instruction::Call(c) => taken = self.call(bus, c),
+            Instruction::Ret(c) => taken = self.ret(bus, c),
             Instruction::JpHl => self.jphl(),
-            Instruction::Call(c) => self.call(bus, c),
-            Instruction::Ret(c) => self.ret(c),
-            Instruction::RetI => self.reti(),
-            Instruction::Rst(vec) => self.rst(vec as u16),
+            Instruction::RetI => self.reti(bus),
+            Instruction::Rst(vec) => self.rst(bus, vec as u16),
 
-            Instruction::Push(r) => self.push(r),
-            Instruction::Pop(r) => self.pop(r),
+            Instruction::Push(r) => self.push(bus, r),
+            Instruction::Pop(r) => self.pop(bus, r),
 
             Instruction::Rlca => self.rlca(),
             Instruction::Rrca => self.rrca(),
@@ -128,6 +125,7 @@ impl Cpu {
 
             Instruction::Illegal(i) => panic!("Illegal instruction: {i}"),
         }
+        instruction.cycle_count(taken)
     }
 
     // ----- Registers Getter/Setter ------------------------------
@@ -314,57 +312,76 @@ impl Cpu {
 
     // ----- Jump ------------------------------
 
-    fn jp(&mut self, bus: &mut Bus, c: Option<Cond>) {
+    fn jp(&mut self, bus: &mut Bus, c: Option<Cond>) -> bool {
         if !self.condition(c) {
-            return;
+            return false;
         }
         let addr = self.take_pc16(bus);
         self.pc = addr;
+        true
     }
 
-    fn jr(&mut self, bus: &mut Bus, c: Option<Cond>) {
+    fn jr(&mut self, bus: &mut Bus, c: Option<Cond>) -> bool {
         if !self.condition(c) {
-            return;
+            return false;
         }
         let offset = self.take_pc8(bus) as i8 as i32;
         self.pc = (self.pc as i32).wrapping_add(offset) as u16;
+        true
     }
 
     const fn jphl(&mut self) { self.pc = self.get_r16(R16::HL); }
 
-    fn call(&mut self, bus: &mut Bus, c: Option<Cond>) {
+    fn call(&mut self, bus: &mut Bus, c: Option<Cond>) -> bool {
         if !self.condition(c) {
-            return;
+            return false;
         }
         let addr = self.take_pc16(bus);
-        self.rst(addr)
+        self.rst(bus, addr);
+        true
     }
 
-    fn ret(&mut self, c: Option<Cond>) {
+    fn ret(&mut self, bus: &Bus, c: Option<Cond>) -> bool {
         if !self.condition(c) {
-            return;
+            return false;
         }
-        self.pc = self.stack.pop().expect("StackUnderflow");
+        self.pc = self.pop_stack(bus);
+        true
     }
 
-    fn reti(&mut self) {
+    fn reti(&mut self, bus: &Bus) {
         self.ime = true;
-        self.ret(None);
+        self.ret(bus, None);
     }
 
-    fn rst(&mut self, vec: u16) {
-        self.stack.push(self.pc);
+    fn rst(&mut self, bus: &mut Bus, vec: u16) {
+        self.push_stack(bus, self.pc);
         self.pc = vec
     }
 
-    fn push(&mut self, r: R16Stk) {
+    fn push(&mut self, bus: &mut Bus, r: R16Stk) {
         let value = self.registers.get_r16stck(r);
-        self.stack.push(value);
+        self.push_stack(bus, value);
     }
 
-    fn pop(&mut self, r: R16Stk) {
-        let value = self.registers.get_r16stck(r);
-        self.stack.push(value);
+    fn push_stack(&mut self, bus: &mut Bus, value: u16) {
+        self.registers.dec_sp();
+        bus.write(self.registers.get_sp(), (value >> 8) as u8);
+        self.registers.dec_sp();
+        bus.write(self.registers.get_sp(), (value & 0xFF) as u8);
+    }
+
+    fn pop(&mut self, bus: &Bus, r: R16Stk) {
+        let value = self.pop_stack(bus);
+        self.registers.set_r16stck(r, value);
+    }
+
+    fn pop_stack(&mut self, bus: &Bus) -> u16 {
+        let hi = bus.read(self.registers.get_sp());
+        self.registers.inc_sp();
+        let lo = bus.read(self.registers.get_sp());
+        self.registers.inc_sp();
+        (hi as u16) << 8 | (lo as u16)
     }
 
     // ----- Rotate ------------------------------

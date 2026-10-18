@@ -25,12 +25,15 @@ impl Registers {
     pub const fn get_bc(&self) -> u16 { Self::merge_reg(self.b, self.c) }
     pub const fn get_de(&self) -> u16 { Self::merge_reg(self.d, self.e) }
     pub const fn get_hl(&self) -> u16 { Self::merge_reg(self.h, self.l) }
+    pub const fn get_sp(&self) -> u16 { self.sp }
 
     const fn split_reg(value: u16) -> (u8, u8) { (((value & 0xFF00) >> 8) as u8, (value & 0x00FF) as u8) }
     pub const fn set_af(&mut self, value: u16) { (self.a, self.f) = Self::split_reg(value); }
     pub const fn set_bc(&mut self, value: u16) { (self.b, self.c) = Self::split_reg(value); }
     pub const fn set_de(&mut self, value: u16) { (self.d, self.e) = Self::split_reg(value); }
     pub const fn set_hl(&mut self, value: u16) { (self.h, self.l) = Self::split_reg(value); }
+    pub const fn inc_sp(&mut self) { self.sp += 1 }
+    pub const fn dec_sp(&mut self) { self.sp -= 1 }
 
     pub const fn set_flags(&mut self, flags: Flags, spec: FlagSpec) {
         let [z, n, h, c] = spec.0;
