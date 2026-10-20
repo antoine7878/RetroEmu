@@ -3,7 +3,7 @@ use std::num::ParseIntError;
 use super::bus::Bus;
 use super::config::Config;
 use super::cpu::Cpu;
-use super::debugger::{Debugger, StopReason};
+use crate::debugger::{Debugger, StopReason};
 
 pub struct GameBoy {
     cpu: Cpu,

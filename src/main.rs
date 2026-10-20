@@ -1,6 +1,7 @@
 #![allow(unused)]
 mod argparser;
 mod args;
+mod debugger;
 mod frontend;
 mod gbc;
 

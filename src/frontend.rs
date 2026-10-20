@@ -13,7 +13,8 @@ use sdl2::video::{Window, WindowContext};
 use sdl2::{EventPump, Sdl};
 
 use crate::args::Args;
-use crate::gbc::{DebugAction, Debugger, FRAME_TIME, GameBoy, HEIGHT, SCALE, WIDTH};
+use crate::debugger::{DebugAction, Debugger};
+use crate::gbc::{FRAME_TIME, GameBoy, HEIGHT, SCALE, WIDTH};
 
 enum Mode {
     Running,
