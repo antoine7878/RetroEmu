@@ -35,10 +35,13 @@ pub enum R16Mem { BC, DE, HlInc, HlDec }
 
 impl R16Mem {
     const ALL: [Self; 4] = [Self::BC, Self::DE, Self::HlInc, Self::HlDec];
-    const FMT: [&str; 4] = ["[bc]", "[be]", "[hl-]", "[hl+]"];
+    const FMT: [&str; 4] = ["[bc]", "[de]", "[hl+]", "[hl-]"];
     const fn oct(o: u8) -> Self { Self::ALL[((o & 0b111) >> 1) as usize] }
-    pub const fn to_r16(&self) -> R16 {
-        match self {
+}
+
+impl From<R16Mem> for R16 {
+    fn from(value: R16Mem) -> Self {
+        match value {
             R16Mem::BC => R16::BC,
             R16Mem::DE => R16::DE,
             R16Mem::HlDec | R16Mem::HlInc => R16::HL,
@@ -164,7 +167,7 @@ impl Instruction {
             (1, 0) => Instruction::Stop,
             (2, 0) => Instruction::LdA16SP,
             (3, 0) => Instruction::Jr(None),
-            (c, 0) => Instruction::Jr(Some(Cond::oct(c >> 2))),
+            (c, 0) => Instruction::Jr(Some(Cond::oct(c & 0b11))),
             (r @ (0 | 2 | 4 | 6), 1) => Instruction::LdImm16(R16::oct(r)),
             (r, 1) => Instruction::AddHl(R16::oct(r)),
             (o @ (0 | 2 | 4 | 6), 2) => Instruction::LdR16MemA(R16Mem::oct(o)),

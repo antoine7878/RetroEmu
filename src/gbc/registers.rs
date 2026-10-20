@@ -51,10 +51,10 @@ impl CpuRegisters {
 
     pub const fn set_flags(&mut self, flags: Flags, spec: FlagSpec) {
         let [z, n, h, c] = spec.0;
-        self.f |= z.resolve(self.get_z(), flags.z) << ZERO_FLAG;
-        self.f |= n.resolve(self.get_n(), flags.n) << SUB_FLAG;
-        self.f |= h.resolve(self.get_h(), flags.h) << HALF_CARRY_FLAG;
-        self.f |= c.resolve(self.get_c(), flags.c) << CARRY_FLAG;
+        self.f = z.resolve(self.get_z(), flags.z) << ZERO_FLAG
+            | n.resolve(self.get_n(), flags.n) << SUB_FLAG
+            | h.resolve(self.get_h(), flags.h) << HALF_CARRY_FLAG
+            | c.resolve(self.get_c(), flags.c) << CARRY_FLAG;
     }
 
     pub const fn get_z(&self) -> u8 { (self.f >> ZERO_FLAG) & 1 }
@@ -136,11 +136,15 @@ impl CpuRegisters {
 
 impl fmt::Display for CpuRegisters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "af: 0x{:04x}", self.get_af())?;
-        writeln!(f, "bc: 0x{:04x}", self.get_bc())?;
-        writeln!(f, "de: 0x{:04x}", self.get_de())?;
-        writeln!(f, "hl: 0x{:04x}", self.get_hl())?;
-        writeln!(f, "sp: 0x{:04x}", self.sp)?;
-        write!(f, "pc: 0x{:04x}", self.pc)
+        write!(f, "A: {:02X} ", self.a)?;
+        write!(f, "F: {:02X} ", self.f)?;
+        write!(f, "B: {:02X} ", self.b)?;
+        write!(f, "C: {:02X} ", self.c)?;
+        write!(f, "D: {:02X} ", self.d)?;
+        write!(f, "E: {:02X} ", self.e)?;
+        write!(f, "H: {:02X} ", self.h)?;
+        write!(f, "L: {:02X} ", self.l)?;
+        write!(f, "SP: {:04X} ", self.sp)?;
+        write!(f, "PC: {:04X}", self.pc)
     }
 }

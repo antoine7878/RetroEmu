@@ -32,22 +32,26 @@ impl Bus {
         }
     }
 
-    pub fn read(&mut self, addr: u16) -> u8 {
-        self.tick();
+    pub fn read_log(&self, addr: u16) -> u8 {
         match addr {
             ROM_START..ROM_END => self.cart.read_rom(addr),
             VRAM_START..VRAM_END => self.ppu.read(addr),
             CRAM_START..CRAM_END => self.cart.read_ram(addr),
             WRAM_START..WRAM_END => self.wram.read(addr),
-            ECHO_START..ECHO_END => self.read(addr - 0x2000),
+            ECHO_START..ECHO_END => self.read_log(addr - 0x2000),
             OAM_START..OAM_END => self.ppu.read(addr),
             NOT_START..NOT_END => 0xFF,
             PPU_START..PPU_END => self.ppu.read(addr),
             HRAM_START..HRAM_END => self.hram[(addr - HRAM_START) as usize],
             0xFF0F => self.ifl.read(),
             0xFFFF => self.ie.read(),
-            _ => todo!("io regs"),
+            _ => todo!("io regs: {:04X}", addr),
         }
+    }
+
+    pub fn read(&mut self, addr: u16) -> u8 {
+        self.tick();
+        self.read_log(addr)
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
@@ -64,7 +68,7 @@ impl Bus {
             HRAM_START..HRAM_END => self.hram[(addr - HRAM_START) as usize] = value,
             0xFF0F => self.ifl.write(value),
             0xFFFF => self.ie.write(value),
-            _ => todo!("io regs"),
+            _ => todo!("io regs: {:04X}", addr),
         }
     }
 

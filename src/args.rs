@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::process::exit;
 use std::str::Chars;
 use std::vec;
@@ -14,7 +15,7 @@ impl Args {}
 pub struct Args {
     pub infiles: Vec<String>,
     pub debug: bool,
-    pub breakpoints: HashSet<u16>,
+    pub breakpoints: BTreeSet<u16>,
     argv: vec::IntoIter<String>,
 }
 
@@ -43,7 +44,7 @@ impl ArgParser for Args {
 }
 
 impl Default for Args {
-    fn default() -> Self { Self { infiles: Vec::default(), debug: false, breakpoints: HashSet::new(), argv: argv() } }
+    fn default() -> Self { Self { infiles: Vec::default(), debug: false, breakpoints: BTreeSet::new(), argv: argv() } }
 }
 
 impl Args {

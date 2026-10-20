@@ -1,10 +1,11 @@
-use std::{collections::HashSet, fmt};
+use std::collections::BTreeSet;
+use std::fmt;
 
 use crate::{args::Args, gbc::GameBoy};
 
 #[derive(Default)]
 pub struct Debugger {
-    breakpoints: HashSet<u16>,
+    pub breakpoints: BTreeSet<u16>,
     step_budget: Option<u32>,
     skip_break: bool,
 }

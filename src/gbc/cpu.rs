@@ -28,7 +28,7 @@ impl Cpu {
     pub fn new() -> Self {
         let mut registers = CpuRegisters::default();
         registers.init(super::config::GCMode::DMG);
-        Self { power_mode: PowerMode::default(), ime: false, registers: CpuRegisters::default() }
+        Self { power_mode: PowerMode::default(), ime: false, registers }
     }
 
     pub fn step(&mut self, bus: &mut Bus) -> u64 {
@@ -155,8 +155,8 @@ impl Cpu {
             None => true,
             Some(Cond::Z) => self.registers.get_z() == 1,
             Some(Cond::NZ) => self.registers.get_z() == 0,
-            Some(Cond::C) => self.registers.get_c() == 0,
-            Some(Cond::NC) => self.registers.get_c() == 1,
+            Some(Cond::C) => self.registers.get_c() == 1,
+            Some(Cond::NC) => self.registers.get_c() == 0,
         }
     }
 
@@ -203,16 +203,26 @@ impl Cpu {
     }
 
     fn ldr16a(&mut self, bus: &mut Bus, rm: R16Mem) {
+        let r = R16::from(rm);
         let value = self.get_r8(bus, R8::A);
-        let r = rm.to_r16();
         bus.write(self.get_r16(r), value);
+        self.update_r16mem(rm);
     }
 
     fn ldar16(&mut self, bus: &mut Bus, rm: R16Mem) {
-        let r = rm.to_r16();
+        let r = R16::from(rm);
         let addr = self.get_r16(r);
         let value = bus.read(addr);
         self.set_r8(bus, R8::A, value);
+        self.update_r16mem(rm);
+    }
+
+    fn update_r16mem(&mut self, r: R16Mem) {
+        match r {
+            R16Mem::HlInc => self.registers.set_hl(self.registers.get_hl().wrapping_add(1)),
+            R16Mem::HlDec => self.registers.set_hl(self.registers.get_hl().wrapping_sub(1)),
+            _ => (),
+        }
     }
 
     fn ldn16(&mut self, bus: &mut Bus, r: R16) {
@@ -319,19 +329,19 @@ impl Cpu {
     // ----- Jump ------------------------------
 
     fn jp(&mut self, bus: &mut Bus, c: Option<Cond>) -> bool {
+        let addr = self.take_pc16(bus);
         if !self.condition(c) {
             return false;
         }
-        let addr = self.take_pc16(bus);
         *self.registers.pc_mut() = addr;
         true
     }
 
     fn jr(&mut self, bus: &mut Bus, c: Option<Cond>) -> bool {
+        let offset = self.take_pc8(bus) as i8 as i32;
         if !self.condition(c) {
             return false;
         }
-        let offset = self.take_pc8(bus) as i8 as i32;
         *self.registers.pc_mut() = (self.pc() as i32).wrapping_add(offset) as u16;
         true
     }
@@ -339,10 +349,10 @@ impl Cpu {
     const fn jphl(&mut self) { *self.registers.pc_mut() = self.get_r16(R16::HL); }
 
     fn call(&mut self, bus: &mut Bus, c: Option<Cond>) -> bool {
+        let addr = self.take_pc16(bus);
         if !self.condition(c) {
             return false;
         }
-        let addr = self.take_pc16(bus);
         self.rst(bus, addr);
         true
     }
@@ -484,7 +494,7 @@ impl Cpu {
     }
 
     pub fn print(&self) {
-        println!("{}", self.registers);
+        print!("{}", self.registers);
     }
 }
 

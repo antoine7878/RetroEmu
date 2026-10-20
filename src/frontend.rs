@@ -27,6 +27,7 @@ pub struct Frontend {
     dbg: Option<Debugger>,
     mode: Mode,
     commands: Receiver<String>,
+    last_cmd: String,
 }
 
 impl Frontend {
@@ -37,7 +38,8 @@ impl Frontend {
         let mode = Mode::Running;
         let dbg = Debugger::new(&args);
         let commands = Self::init_debug_thread();
-        Ok(Self { sdl, event_pump, canvas, texture, dbg, mode, commands })
+        let last_cmd = String::new();
+        Ok(Self { sdl, event_pump, canvas, texture, dbg, mode, commands, last_cmd })
     }
 
     fn init_texture(sdl: &Sdl) -> Result<(Canvas<Window>, Texture), Box<dyn Error>> {
@@ -79,7 +81,10 @@ impl Frontend {
                 }
             }
 
-            while let Ok(cmd) = self.commands.try_recv() {
+            while let Ok(mut cmd) = self.commands.try_recv() {
+                if cmd.is_empty() {
+                    cmd = self.last_cmd.clone();
+                }
                 self.handle_command(&cmd, game_boy);
             }
 
@@ -114,27 +119,46 @@ impl Frontend {
     fn handle_command(&mut self, cmd: &str, game_boy: &mut GameBoy) {
         let Some(dbg) = self.dbg.as_mut() else { return };
         let mut it = cmd.split_whitespace();
+        self.last_cmd = cmd.to_string();
         match it.next() {
             Some("c") => {
                 dbg.resume();
                 self.mode = Mode::Running;
+                return;
+            }
+            Some("s") => {
+                let n = Self::parse_int(it.next());
+                dbg.step(n);
+                self.mode = Mode::Running;
+                return;
             }
             Some("r") | Some("reg") => {
                 game_boy.print_registers();
-                self.pause();
             }
-            Some("s") => {
-                let n = it.next().and_then(|s| s.parse().ok()).unwrap_or(1);
-                dbg.step(n);
-                self.mode = Mode::Running;
+            Some("b") => {
+                let addr = Self::parse_addr(it.next());
+                dbg.breakpoints.insert(addr);
+            }
+            Some("d") => {
+                let addr = Self::parse_addr(it.next());
+                dbg.breakpoints.remove(&addr);
+            }
+            Some("bl") => {
+                println!("Breakpoints:");
+                for b in dbg.breakpoints.iter() {
+                    println!("{:04x}", b);
+                }
             }
             Some(other) => {
                 println!("unknown command: {other}");
-                self.pause();
             }
-            None => self.pause(),
+            None => (),
         }
+        self.pause();
     }
+
+    fn parse_addr(s: Option<&str>) -> u16 { s.and_then(|s| u16::from_str_radix(s, 16).ok()).unwrap_or(1_u16) }
+    fn parse_int(s: Option<&str>) -> u32 { s.and_then(|s| s.parse().ok()).unwrap_or(1) }
 
     fn pause(&mut self) {
         self.mode = Mode::Paused;

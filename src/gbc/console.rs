@@ -31,5 +31,15 @@ impl GameBoy {
     pub const fn pixels(&self) -> &[u8] { self.bus.get_pixels() }
 
     pub fn take_redraw(&mut self) -> bool { self.bus.take_redraw() }
-    pub fn print_registers(&self) { self.cpu.print(); }
+
+    pub fn print_registers(&self) {
+        self.cpu.print();
+        println!(
+            " PCMEM:{:02X},{:02X},{:02X},{:02X}",
+            self.bus.read_log(self.cpu.pc()),
+            self.bus.read_log(self.cpu.pc() + 1),
+            self.bus.read_log(self.cpu.pc() + 2),
+            self.bus.read_log(self.cpu.pc() + 3)
+        );
+    }
 }
