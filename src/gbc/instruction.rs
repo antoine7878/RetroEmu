@@ -234,9 +234,9 @@ impl Instruction {
         }
     }
 
-    const fn prefix(op_code: u8) -> Self {
+    pub const fn prefix(op_code: u8) -> Self {
         let (mi, lo) = Self::milo(op_code);
-        match (op_code >> 3, mi, lo) {
+        match (op_code >> 6, mi, lo) {
             (0, o @ 0..8, r @ 0..8) => Instruction::Shift(ShiftOp::oct(o), R8::oct(r)),
             (1, i @ 0..8, r @ 0..8) => Instruction::Bit(i, R8::oct(r)),
             (2, i @ 0..8, r @ 0..8) => Instruction::Res(i, R8::oct(r)),
@@ -377,6 +377,29 @@ impl Instruction {
             Instruction::Ret(Some(_)) => 1,
         }
     }
+
+    pub fn disassemble(addr: u16, read: impl Fn(u16) -> u8) -> (String, u16) {
+        let opcode = read(addr);
+        let instr = match opcode {
+            0xCB => Self::prefix(read(addr.wrapping_add(1))),
+            _ => Self::decode(opcode),
+        };
+        let len = instr.shape().0 as u16;
+        let n8 = read(addr.wrapping_add(1));
+        let n16 = u16::from_le_bytes([n8, read(addr.wrapping_add(2))]);
+        let e8 = match instr {
+            Instruction::Jr(_) => format!("${:04X}", addr.wrapping_add(2).wrapping_add_signed(n8 as i8 as i16)),
+            _ => format!("{}", n8 as i8),
+        };
+        let text = instr
+            .to_string()
+            .replace("n16", &format!("${n16:04X}"))
+            .replace("a16", &format!("${n16:04X}"))
+            .replace("n8", &format!("${n8:02X}"))
+            .replace("a8", &format!("$FF{n8:02X}"))
+            .replace("e8", &e8);
+        (text, len)
+    }
 }
 
 impl fmt::Display for Instruction {
@@ -389,12 +412,12 @@ impl fmt::Display for Instruction {
             Instruction::Ei => write!(f, "ei"),
             Instruction::Ld(dst, src) => write!(f, "ld {dst}, {src}"),
             Instruction::LdImm(r) => write!(f, "ld {r}, n8"),
-            Instruction::LdhImmA => write!(f, "ldh [a16], a"),
-            Instruction::LdhAImm => write!(f, "ldh a, [a16]"),
-            Instruction::LdhCA => write!(f, "ldh c a"),
-            Instruction::LdhAC => write!(f, "ldh a c"),
-            Instruction::LdhAbsA => write!(f, "ldh [a8], a"),
-            Instruction::LdhAAbs => write!(f, "ldh a, [a8]"),
+            Instruction::LdhImmA => write!(f, "ldh [a8], a"),
+            Instruction::LdhAImm => write!(f, "ldh a, [a8]"),
+            Instruction::LdhCA => write!(f, "ldh [c], a"),
+            Instruction::LdhAC => write!(f, "ldh a, [c]"),
+            Instruction::LdhAbsA => write!(f, "ld [a16], a"),
+            Instruction::LdhAAbs => write!(f, "ld a, [a16]"),
             Instruction::LdImm16(r) => write!(f, "ld {r}, n16"),
             Instruction::LdA16SP => write!(f, "ld [a16], sp"),
             Instruction::LdR16MemA(r) => write!(f, "ld {r}, a"),
@@ -402,7 +425,7 @@ impl fmt::Display for Instruction {
             Instruction::LdSpHl => write!(f, "ld sp, hl"),
             Instruction::LdHlSp8 => write!(f, "ld hl, sp + e8"),
             Instruction::Alu(op, r) => write!(f, "{op} a, {r}"),
-            Instruction::AluN(op) => write!(f, "{op} a, n8 "),
+            Instruction::AluN(op) => write!(f, "{op} a, n8"),
             Instruction::Inc(r) => write!(f, "inc {r}"),
             Instruction::Dec(r) => write!(f, "dec {r}"),
             Instruction::Inc16(r) => write!(f, "inc {r}"),
@@ -426,11 +449,11 @@ impl fmt::Display for Instruction {
             Instruction::Rrca => write!(f, "rrca"),
             Instruction::Rla => write!(f, "rla"),
             Instruction::Rra => write!(f, "rra"),
-            Instruction::Daa => write!(f, "dda"),
+            Instruction::Daa => write!(f, "daa"),
             Instruction::Cpl => write!(f, "cpl"),
             Instruction::Scf => write!(f, "scf"),
             Instruction::Ccf => write!(f, "ccf"),
-            Instruction::Shift(op, r) => write!(f, "{op}, {r}"),
+            Instruction::Shift(op, r) => write!(f, "{op} {r}"),
             Instruction::Bit(i, r) => write!(f, "bit {i}, {r}"),
             Instruction::Res(i, r) => write!(f, "res {i}, {r}"),
             Instruction::Set(i, r) => write!(f, "set {i}, {r}"),

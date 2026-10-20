@@ -62,6 +62,7 @@ impl Debugger {
                 return DebugAction::Step;
             }
             Some("r") => game_boy.print_registers(),
+            Some("l") => game_boy.print_disassembly(it.next().and_then(|s| s.parse().ok()).unwrap_or(10)),
             Some("b") => {
                 if let Some(addr) = parse_addr(it.next())
                     && self.breakpoints.insert(addr)
@@ -87,6 +88,7 @@ impl Debugger {
                 println!("  c            continue");
                 println!("  s [n]        step n instructions (default 1)");
                 println!("  r            print registers");
+                println!("  l [n]        disassemble n instructions from pc (default 10)");
                 println!("  b $<addr>    set breakpoint at hex addr");
                 println!("  d $<addr>    delete breakpoint at hex addr");
                 println!("  bl           list breakpoints");

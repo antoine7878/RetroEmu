@@ -3,6 +3,7 @@ use std::num::ParseIntError;
 use super::bus::Bus;
 use super::config::Config;
 use super::cpu::Cpu;
+use super::instruction::Instruction;
 use crate::debugger::{Debugger, StopReason};
 
 pub struct GameBoy {
@@ -41,5 +42,15 @@ impl GameBoy {
             self.bus.read_log(self.cpu.pc() + 2),
             self.bus.read_log(self.cpu.pc() + 3)
         );
+    }
+
+    pub fn print_disassembly(&self, count: usize) {
+        let mut addr = self.cpu.pc();
+        for i in 0..count {
+            let (text, len) = Instruction::disassemble(addr, |a| self.bus.read_log(a));
+            let marker = if i == 0 { "=>" } else { "  " };
+            println!("{marker} ${addr:04X}  {text}");
+            addr = addr.wrapping_add(len);
+        }
     }
 }

@@ -96,6 +96,7 @@ impl Frontend {
                 && let Some(reason) = game_boy.run_frame(self.dbg.as_mut())
             {
                 println!("{reason}");
+                game_boy.print_disassembly(5);
                 self.focus_terminal();
                 self.pause();
             }
