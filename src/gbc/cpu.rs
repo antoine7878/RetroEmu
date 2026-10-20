@@ -482,6 +482,10 @@ impl Cpu {
         let value = self.get_r8(bus, r) | (1 << i);
         self.set_r8(bus, r, value);
     }
+
+    pub fn print(&self) {
+        println!("{}", self.registers);
+    }
 }
 
 const DAA: FlagSpec = FlagSpec::znhc("R-0R");

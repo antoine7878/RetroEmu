@@ -5,7 +5,8 @@ use crate::{args::Args, gbc::GameBoy};
 #[derive(Default)]
 pub struct Debugger {
     breakpoints: HashSet<u16>,
-    step_budget: Option<u32>, // Some(n) = stop after n instructions
+    step_budget: Option<u32>,
+    skip_break: bool,
 }
 
 pub enum StopReason {
@@ -18,7 +19,7 @@ impl Debugger {
         if !args.debug {
             return None;
         }
-        Some(Self { step_budget: None, breakpoints: args.breakpoints.clone() })
+        Some(Self { step_budget: None, breakpoints: args.breakpoints.clone(), skip_break: false })
     }
 
     pub fn check(&mut self, pc: u16) -> Option<StopReason> {
@@ -29,30 +30,19 @@ impl Debugger {
             }
             *n -= 1;
         }
+        if std::mem::take(&mut self.skip_break) {
+            return None;
+        }
         self.breakpoints.contains(&pc).then_some(StopReason::Breakpoint(pc))
     }
 
-    pub fn step(&mut self, n: u32) { self.step_budget = Some(n); }
+    pub fn resume(&mut self) { self.skip_break = true; }
 
-    // pub fn handle_command(&mut self, cmd: &str, game_boy: &mut GameBoy) {
-    //     // let Some(dbg) = self.as_mut() else { return };
-    //     let mut it = cmd.split_whitespace();
-    //     match it.next() {
-    //         Some("c") => self.mode = Mode::Running,
-    //         Some("s") => {
-    //             let n = it.next().and_then(|s| s.parse().ok()).unwrap_or(1);
-    //             self.step(n);
-    //             self.mode = Mode::Running;
-    //         }
-    //         Some(other) => {
-    //             println!("unknown command: {other}");
-    //             self.pause();
-    //         }
-    //         None => self.pause(),
-    //     }
-    // }
+    pub fn step(&mut self, n: u32) {
+        self.step_budget = Some(n);
+        self.resume();
+    }
 }
-
 impl fmt::Display for StopReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

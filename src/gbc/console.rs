@@ -1,3 +1,5 @@
+use std::num::ParseIntError;
+
 use super::bus::Bus;
 use super::config::Config;
 use super::cpu::Cpu;
@@ -29,4 +31,5 @@ impl GameBoy {
     pub const fn pixels(&self) -> &[u8] { self.bus.get_pixels() }
 
     pub fn take_redraw(&mut self) -> bool { self.bus.take_redraw() }
+    pub fn print_registers(&self) { self.cpu.print(); }
 }

@@ -111,17 +111,18 @@ impl Frontend {
         Ok(())
     }
 
-    fn pause(&mut self) {
-        self.mode = Mode::Paused;
-        print!("(gbdb) ");
-        let _ = std::io::stdout().flush();
-    }
-
     fn handle_command(&mut self, cmd: &str, game_boy: &mut GameBoy) {
         let Some(dbg) = self.dbg.as_mut() else { return };
         let mut it = cmd.split_whitespace();
         match it.next() {
-            Some("c") => self.mode = Mode::Running,
+            Some("c") => {
+                dbg.resume();
+                self.mode = Mode::Running;
+            }
+            Some("r") | Some("reg") => {
+                game_boy.print_registers();
+                self.pause();
+            }
             Some("s") => {
                 let n = it.next().and_then(|s| s.parse().ok()).unwrap_or(1);
                 dbg.step(n);
@@ -133,5 +134,11 @@ impl Frontend {
             }
             None => self.pause(),
         }
+    }
+
+    fn pause(&mut self) {
+        self.mode = Mode::Paused;
+        print!("(gbdb) ");
+        let _ = std::io::stdout().flush();
     }
 }

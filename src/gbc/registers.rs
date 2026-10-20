@@ -136,11 +136,11 @@ impl CpuRegisters {
 
 impl fmt::Display for CpuRegisters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "a: {:02x} | f: {:02x}", self.a, self.f)?;
-        write!(f, "b: {:02x} | c: {:02x}", self.b, self.c)?;
-        write!(f, "d: {:02x} | e: {:02x}", self.d, self.e)?;
-        write!(f, "h: {:02x} | l: {:02x}", self.h, self.l)?;
-        write!(f, "sp: {:04x}", self.sp)?;
-        Ok(())
+        writeln!(f, "af: 0x{:04x}", self.get_af())?;
+        writeln!(f, "bc: 0x{:04x}", self.get_bc())?;
+        writeln!(f, "de: 0x{:04x}", self.get_de())?;
+        writeln!(f, "hl: 0x{:04x}", self.get_hl())?;
+        writeln!(f, "sp: 0x{:04x}", self.sp)?;
+        write!(f, "pc: 0x{:04x}", self.pc)
     }
 }
