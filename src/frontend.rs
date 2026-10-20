@@ -137,21 +137,19 @@ impl Frontend {
                 self.mode = Mode::Running;
                 return;
             }
-            Some("r") | Some("reg") => {
-                game_boy.print_registers();
-            }
+            Some("r") => game_boy.print_registers(),
             Some("b") => {
-                let Some(a) = it.next() else { return };
-                let addr = Self::parse_addr(a);
-                if dbg.breakpoints.insert(addr) {
-                    println!("Added breakpoint at ${addr:04X}")
+                if let Some(addr) = Self::parse_addr(it.next())
+                    && dbg.breakpoints.insert(addr)
+                {
+                    println!("Breakpoint added at ${addr:04X}");
                 }
             }
             Some("d") => {
-                let Some(a) = it.next() else { return };
-                let addr = Self::parse_addr(a);
-                if dbg.breakpoints.remove(&addr) {
-                    println!("Removed breakpoint at ${addr:04X}")
+                if let Some(addr) = Self::parse_addr(it.next())
+                    && dbg.breakpoints.remove(&addr)
+                {
+                    println!("Breakpoint removed at ${addr:04X}");
                 }
             }
             Some("bl") => {
@@ -165,8 +163,8 @@ impl Frontend {
                 println!("  c            continue");
                 println!("  s [n]        step n instructions (default 1)");
                 println!("  r, reg       print registers");
-                println!("  b <addr>     set breakpoint at hex addr");
-                println!("  d <addr>     delete breakpoint at hex addr");
+                println!("  b $<addr>    set breakpoint at hex addr");
+                println!("  d $<addr>    delete breakpoint at hex addr");
                 println!("  bl           list breakpoints");
                 println!("  h            show this help");
                 println!("  <enter>      repeat last command");
@@ -179,7 +177,9 @@ impl Frontend {
         self.pause();
     }
 
-    fn parse_addr(s: &str) -> u16 { u16::from_str_radix(s, 16).ok().unwrap_or(1_u16) }
+    fn parse_addr(s: Option<&str>) -> Option<u16> {
+        s?.strip_prefix('$').and_then(|hex| u16::from_str_radix(hex, 16).ok())
+    }
     fn parse_int(s: Option<&str>) -> u32 { s.and_then(|s| s.parse().ok()).unwrap_or(1) }
 
     fn focus_terminal(&self) {
