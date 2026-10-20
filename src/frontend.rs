@@ -157,7 +157,7 @@ impl Frontend {
             Some("bl") => {
                 println!("Breakpoints:");
                 for b in dbg.breakpoints.iter() {
-                    println!("${:04x}", b);
+                    println!("${b:04X}");
                 }
             }
             Some("h") => {

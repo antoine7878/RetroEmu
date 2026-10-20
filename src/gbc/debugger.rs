@@ -48,7 +48,7 @@ impl fmt::Display for StopReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             StopReason::Step => write!(f, "Step"),
-            StopReason::Breakpoint(addr) => write!(f, "Breakpoint at {addr:04x}"),
+            StopReason::Breakpoint(addr) => write!(f, "Breakpoint at ${addr:04X}"),
         }
     }
 }

@@ -419,7 +419,7 @@ impl fmt::Display for Instruction {
             Instruction::Ret(None) => write!(f, "ret"),
             Instruction::Ret(Some(c)) => write!(f, "ret {c}"),
             Instruction::RetI => write!(f, "reti"),
-            Instruction::Rst(i) => write!(f, "rst {i:2x}"),
+            Instruction::Rst(i) => write!(f, "rst {i:02X}"),
             Instruction::Pop(r) => write!(f, "pop {r}"),
             Instruction::Push(r) => write!(f, "push {r}"),
             Instruction::Rlca => write!(f, "rlca"),

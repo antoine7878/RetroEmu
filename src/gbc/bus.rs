@@ -50,7 +50,7 @@ impl Bus {
             0xFF0F => self.ifl.read(),
             0xFFFF => self.ie.read(),
             0xFF00 => self.joypad.read(),
-            _ => todo!("io regs: {:04X}", addr),
+            _ => todo!("io regs: ${addr:04X}"),
         }
     }
 
@@ -74,7 +74,7 @@ impl Bus {
             0xFF0F => self.ifl.write(value),
             0xFFFF => self.ie.write(value),
             0xFF00 => self.joypad.write(value),
-            _ => todo!("io regs: {:04X}", addr),
+            _ => todo!("io regs: ${addr:04X}"),
         }
     }
 
