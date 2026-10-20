@@ -1,13 +1,14 @@
-use sdl2::log;
+use std::time::Duration;
 
-use crate::args::Args;
+use sdl2::log;
 
 use super::bus::Bus;
 use super::constants::PROGRAM_START;
 use super::flag::{FlagSpec, Flags};
-use super::instruction::{AluOp, Cond, Instruction, R8, R16, R16Mem, R16Stk, ShiftOp};
-use super::registers::Registers;
+use super::instruction::{self, AluOp, Cond, Instruction, R8, R16, R16Mem, R16Stk, ShiftOp};
+use super::registers::CpuRegisters;
 use super::{alu, shift};
+use crate::args::Args;
 
 #[derive(Debug, PartialEq, Eq, Default)]
 pub enum PowerMode {
@@ -18,45 +19,37 @@ pub enum PowerMode {
 }
 
 pub struct Cpu {
-    pc: u16,
     power_mode: PowerMode,
     ime: bool,
-    registers: Registers,
-    prev: Option<Instruction>,
-    prev_count: u64,
+    registers: CpuRegisters,
 }
 
 impl Cpu {
     pub fn new() -> Self {
-        let mut registers = Registers::default();
+        let mut registers = CpuRegisters::default();
         registers.init(super::config::GCMode::DMG);
-        Self {
-            pc: PROGRAM_START,
-            power_mode: PowerMode::default(),
-            ime: false,
-            registers: Registers::default(),
-            prev: None,
-            prev_count: 0,
-        }
+        Self { power_mode: PowerMode::default(), ime: false, registers: CpuRegisters::default() }
     }
 
     pub fn step(&mut self, bus: &mut Bus) -> u64 {
         let opcode = self.take_pc8(bus);
         let instruction = Instruction::decode(opcode);
-        if Args::get().debug {
-            if self.prev.is_some_and(|prev| prev == instruction) {
-                self.prev_count += 1;
-            } else {
-                if self.prev_count > 0 {
-                    log::log(&format!("       ... (x{})", self.prev_count));
-                    self.prev_count = 0;
-                }
-                self.prev = Some(instruction);
-                log::log(&format!("0x{:04x} {}", self.pc, instruction));
-            }
-        }
         self.execute(instruction, bus)
     }
+
+    // fn debug(&mut self, instruction: &Instruction) {
+    //     match instruction {
+    //         Instruction::Nop => self.nop_count += 1,
+    //         _ => {
+    //             if self.nop_count > 0 {
+    //                 log::log_debug(&format!("0x{:04x} nop (x{})", self.pc - self.nop_count, self.nop_count));
+    //                 self.nop_count = 0;
+    //             }
+    //             log::log_debug(&format!("0x{:04x} {}", self.pc, instruction));
+    //         }
+    //     }
+    // }
+
     fn execute(&mut self, instruction: Instruction, bus: &mut Bus) -> u64 {
         let mut taken = false;
         match instruction {
@@ -124,20 +117,22 @@ impl Cpu {
     // ----- Utils ------------------------------
 
     pub fn take_pc8(&mut self, bus: &mut Bus) -> u8 {
-        let res = bus.read(self.pc);
-        self.pc = self.pc.wrapping_add(2);
+        let res = bus.read(self.pc());
+        *self.registers.pc_mut() = self.pc().wrapping_add(1);
         res
     }
 
     pub fn take_pc16(&mut self, bus: &mut Bus) -> u16 {
         let r1 = self.take_pc8(bus);
         let r2 = self.take_pc8(bus);
-        (r1 as u16) << 8 | (r2 as u16)
+        (r2 as u16) << 8 | r1 as u16
     }
 
     fn map_high_page(addr: u8) -> u16 { 0xFF00 | addr as u16 }
 
     // ----- Registers Getter/Setter ------------------------------
+
+    pub fn pc(&self) -> u16 { self.registers.pc() }
 
     fn get_r8(&self, bus: &mut Bus, r: R8) -> u8 {
         match r {
@@ -328,7 +323,7 @@ impl Cpu {
             return false;
         }
         let addr = self.take_pc16(bus);
-        self.pc = addr;
+        *self.registers.pc_mut() = addr;
         true
     }
 
@@ -337,11 +332,11 @@ impl Cpu {
             return false;
         }
         let offset = self.take_pc8(bus) as i8 as i32;
-        self.pc = (self.pc as i32).wrapping_add(offset) as u16;
+        *self.registers.pc_mut() = (self.pc() as i32).wrapping_add(offset) as u16;
         true
     }
 
-    const fn jphl(&mut self) { self.pc = self.get_r16(R16::HL); }
+    const fn jphl(&mut self) { *self.registers.pc_mut() = self.get_r16(R16::HL); }
 
     fn call(&mut self, bus: &mut Bus, c: Option<Cond>) -> bool {
         if !self.condition(c) {
@@ -356,7 +351,7 @@ impl Cpu {
         if !self.condition(c) {
             return false;
         }
-        self.pc = self.pop_stack(bus);
+        *self.registers.pc_mut() = self.pop_stack(bus);
         true
     }
 
@@ -366,8 +361,8 @@ impl Cpu {
     }
 
     fn rst(&mut self, bus: &mut Bus, vec: u16) {
-        self.push_stack(bus, self.pc);
-        self.pc = vec
+        self.push_stack(bus, self.pc());
+        *self.registers.pc_mut() = vec
     }
 
     fn push(&mut self, bus: &mut Bus, r: R16Stk) {

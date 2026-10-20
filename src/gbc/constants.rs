@@ -40,7 +40,7 @@ pub const CARRY_FLAG: u8 = 4;
 // pub const CPU_CLOCK: u32 = 1 << 22;
 // pub const CYCLE_PER_SCAN_LINE: u32 = 456;
 // pub const CYCLE_PRE_FRAME: u32 = 154 * CYCLE_PER_SCAN_LINE;
-pub const SCALE: u32 = 12;
+pub const SCALE: u32 = 2;
 pub const FRAME_RATE: u32 = 60;
 pub const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / FRAME_RATE as u64);
 

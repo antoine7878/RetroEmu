@@ -431,7 +431,7 @@ impl fmt::Display for Instruction {
             Instruction::Bit(i, r) => write!(f, "bit {i}, {r}"),
             Instruction::Res(i, r) => write!(f, "res {i}, {r}"),
             Instruction::Set(i, r) => write!(f, "set {i}, {r}"),
-            Instruction::Illegal(opc) => write!(f, "ILLEGAL opcode {opc}"),
+            Instruction::Illegal(opc) => write!(f, "ILLEGAL opcode {opc:#o}"),
         }
     }
 }

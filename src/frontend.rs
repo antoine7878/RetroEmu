@@ -1,75 +1,137 @@
 use std::error::Error;
+use std::io::Write;
+use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::Instant;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::PixelFormatEnum;
-use sdl2::render::{Canvas, Texture};
-use sdl2::video::Window;
+use sdl2::render::{Canvas, Texture, TextureCreator, WindowCanvas};
+use sdl2::video::{Window, WindowContext};
+use sdl2::{EventPump, Sdl};
 
-use crate::gbc::{FRAME_TIME, GameBoy, HEIGHT, SCALE, WIDTH};
+use crate::args::Args;
+use crate::gbc::{Debugger, FRAME_TIME, GameBoy, HEIGHT, SCALE, WIDTH};
 
-// const KEYMAP: [(Scancode, u8); 16] = [
-//     (Scancode::Num1, 0x1),
-//     (Scancode::Num2, 0x2),
-//     (Scancode::Num3, 0x3),
-//     (Scancode::Num4, 0xC),
-//     (Scancode::Q, 0x4),
-//     (Scancode::W, 0x5),
-//     (Scancode::E, 0x6),
-//     (Scancode::R, 0xD),
-//     (Scancode::A, 0x7),
-//     (Scancode::S, 0x8),
-//     (Scancode::D, 0x9),
-//     (Scancode::F, 0xE),
-//     (Scancode::Z, 0xA),
-//     (Scancode::X, 0x0),
-//     (Scancode::C, 0xB),
-//     (Scancode::V, 0xF),
-// ];
-
-pub fn run(game_boy: &mut GameBoy) -> Result<(), Box<dyn Error>> {
-    let sdl = sdl2::init()?;
-    let mut event_pump = sdl.event_pump()?;
-
-    let window =
-        sdl.video()?.window("RetoEmu", WIDTH as u32 * SCALE, HEIGHT as u32 * SCALE).position_centered().build()?;
-    let mut canvas = window.into_canvas().present_vsync().build()?;
-    canvas.set_logical_size(WIDTH as u32, HEIGHT as u32)?;
-    canvas.set_integer_scale(true)?;
-    let texture_creator = canvas.texture_creator();
-    let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, WIDTH as u32, HEIGHT as u32)?;
-
-    let mut next_frame = Instant::now();
-    'running: loop {
-        next_frame += FRAME_TIME;
-
-        for event in event_pump.poll_iter() {
-            if let Event::Quit { .. } | Event::KeyDown { scancode: Some(Scancode::Escape), .. } = event {
-                break 'running;
-            }
-        }
-
-        game_boy.run_frame();
-
-        draw(game_boy, &mut texture, &mut canvas)?;
-
-        let now = Instant::now();
-        match next_frame.checked_duration_since(now) {
-            Some(remaining) => sleep(remaining),
-            None if now - next_frame > FRAME_TIME * 5 => next_frame = now,
-            None => {}
-        }
-    }
-    Ok(())
+enum Mode {
+    Running,
+    Paused,
 }
 
-fn draw(game_boy: &mut GameBoy, texture: &mut Texture, canvas: &mut Canvas<Window>) -> Result<(), Box<dyn Error>> {
-    if game_boy.take_redraw() {
-        texture.update(None, game_boy.pixels(), WIDTH * 3)?;
-        canvas.copy(texture, None, None)?;
-        canvas.present();
+pub struct Frontend {
+    sdl: Sdl,
+    event_pump: EventPump,
+    canvas: Canvas<Window>,
+    texture: Texture,
+    dbg: Option<Debugger>,
+    mode: Mode,
+    commands: Receiver<String>,
+}
+
+impl Frontend {
+    pub fn new(args: Args, sdl: Sdl) -> Result<Self, Box<dyn Error>> {
+        let mut event_pump = sdl.event_pump()?;
+
+        let (canvas, texture) = Self::init_texture(&sdl)?;
+        let mode = Mode::Running;
+        let dbg = Debugger::new(&args);
+        let commands = Self::init_debug_thread();
+        Ok(Self { sdl, event_pump, canvas, texture, dbg, mode, commands })
     }
-    Ok(())
+
+    fn init_texture(sdl: &Sdl) -> Result<(Canvas<Window>, Texture), Box<dyn Error>> {
+        let window = sdl
+            .video()?
+            .window("RetoEmu", WIDTH as u32 * SCALE, HEIGHT as u32 * SCALE)
+            .position_centered()
+            .always_on_top()
+            .build()?;
+        let mut canvas = window.into_canvas().present_vsync().build()?;
+        canvas.set_logical_size(WIDTH as u32, HEIGHT as u32)?;
+        canvas.set_integer_scale(true)?;
+        let texture_creator = canvas.texture_creator();
+        let mut texture =
+            texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, WIDTH as u32, HEIGHT as u32)?;
+        Ok((canvas, texture))
+    }
+
+    fn init_debug_thread() -> Receiver<String> {
+        let (tx, commands) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            for line in std::io::stdin().lines().map_while(Result::ok) {
+                if tx.send(line).is_err() {
+                    break;
+                }
+            }
+        });
+        commands
+    }
+
+    pub fn run(&mut self, game_boy: &mut GameBoy) -> Result<(), Box<dyn Error>> {
+        let mut next_frame = Instant::now();
+        'running: loop {
+            next_frame += FRAME_TIME;
+
+            for event in self.event_pump.poll_iter() {
+                if let Event::Quit { .. } | Event::KeyDown { scancode: Some(Scancode::Escape), .. } = event {
+                    break 'running;
+                }
+            }
+
+            while let Ok(cmd) = self.commands.try_recv() {
+                self.handle_command(&cmd, game_boy);
+            }
+
+            if let Mode::Running = self.mode
+                && let Some(reason) = game_boy.run_frame(self.dbg.as_mut())
+            {
+                println!("{reason}");
+                self.pause();
+            }
+
+            self.draw(game_boy)?;
+
+            let now = Instant::now();
+            match next_frame.checked_duration_since(now) {
+                Some(remaining) => sleep(remaining),
+                None if now - next_frame > FRAME_TIME * 5 => next_frame = now,
+                None => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn draw(&mut self, game_boy: &mut GameBoy) -> Result<(), Box<dyn Error>> {
+        if game_boy.take_redraw() {
+            self.texture.update(None, game_boy.pixels(), WIDTH * 3)?;
+            self.canvas.copy(&self.texture, None, None)?;
+            self.canvas.present();
+        }
+        Ok(())
+    }
+
+    fn pause(&mut self) {
+        self.mode = Mode::Paused;
+        print!("(gbdb) ");
+        let _ = std::io::stdout().flush();
+    }
+
+    fn handle_command(&mut self, cmd: &str, game_boy: &mut GameBoy) {
+        let Some(dbg) = self.dbg.as_mut() else { return };
+        let mut it = cmd.split_whitespace();
+        match it.next() {
+            Some("c") => self.mode = Mode::Running,
+            Some("s") => {
+                let n = it.next().and_then(|s| s.parse().ok()).unwrap_or(1);
+                dbg.step(n);
+                self.mode = Mode::Running;
+            }
+            Some(other) => {
+                println!("unknown command: {other}");
+                self.pause();
+            }
+            None => self.pause(),
+        }
+    }
 }

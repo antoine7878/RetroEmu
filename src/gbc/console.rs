@@ -1,6 +1,7 @@
 use super::bus::Bus;
 use super::config::Config;
 use super::cpu::Cpu;
+use super::debugger::{Debugger, StopReason};
 
 pub struct GameBoy {
     cpu: Cpu,
@@ -14,12 +15,15 @@ impl GameBoy {
         Self { cpu: Cpu::new(), bus: Bus::new(rom), cycle_count: 0, config }
     }
 
-    pub fn run_frame(&mut self) {
-        let start_cycle = self.bus.get_cycle_count();
-        while self.bus.get_cycle_count() - start_cycle < self.config.instructions_per_frame {
-            let c = self.cpu.step(&mut self.bus);
-            self.cycle_count += c;
+    pub fn run_frame(&mut self, mut dbg: Option<&mut Debugger>) -> Option<StopReason> {
+        let start = self.bus.get_cycle_count();
+        while self.bus.get_cycle_count() - start < self.config.instructions_per_frame {
+            if let Some(r) = dbg.as_deref_mut().and_then(|d| d.check(self.cpu.pc())) {
+                return Some(r);
+            }
+            self.cycle_count += self.cpu.step(&mut self.bus);
         }
+        None
     }
 
     pub const fn pixels(&self) -> &[u8] { self.bus.get_pixels() }

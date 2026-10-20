@@ -1,3 +1,7 @@
+use std::fmt;
+
+use crate::gbc::constants::PROGRAM_START;
+
 use super::config::GCMode;
 use super::constants::{CARRY_FLAG, HALF_CARRY_FLAG, SUB_FLAG, ZERO_FLAG};
 use super::flag::{FlagSpec, Flags};
@@ -5,15 +9,16 @@ use super::instruction::{R8, R16, R16Stk};
 
 #[rustfmt::skip]
 #[derive(Default)]
-pub struct Registers {
+pub struct CpuRegisters {
     a: u8, f: u8,
     b: u8, c: u8,
     d: u8, e: u8,
     h: u8, l: u8,
     sp: u16,
+    pc: u16,
 }
 
-impl Registers {
+impl CpuRegisters {
     pub const fn init(&mut self, mode: GCMode) {
         let (af, bc, de, hl) = match mode {
             GCMode::DMG => (0x01B0, 0x0013, 0x00D8, 0x014D),
@@ -24,6 +29,7 @@ impl Registers {
         self.set_de(de);
         self.set_hl(hl);
         self.sp = 0xFFFE;
+        self.pc = PROGRAM_START;
     }
     pub const fn get_a(&self) -> u8 { self.a }
     pub const fn set_a(&mut self, value: u8) { self.a = value; }
@@ -61,6 +67,9 @@ impl Registers {
 
     pub const fn set_c(&mut self) { self.f |= 1 << CARRY_FLAG }
     pub const fn set_h(&mut self) { self.f |= 1 << HALF_CARRY_FLAG }
+
+    pub const fn pc(&self) -> u16 { self.pc }
+    pub const fn pc_mut(&mut self) -> &mut u16 { &mut self.pc }
 
     pub const fn get_r8(&self, r: R8) -> u8 {
         match r {
@@ -122,5 +131,16 @@ impl Registers {
             R16Stk::HL => self.set_hl(value),
             R16Stk::AF => self.set_af(value),
         }
+    }
+}
+
+impl fmt::Display for CpuRegisters {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "a: {:02x} | f: {:02x}", self.a, self.f)?;
+        write!(f, "b: {:02x} | c: {:02x}", self.b, self.c)?;
+        write!(f, "d: {:02x} | e: {:02x}", self.d, self.e)?;
+        write!(f, "h: {:02x} | l: {:02x}", self.h, self.l)?;
+        write!(f, "sp: {:04x}", self.sp)?;
+        Ok(())
     }
 }

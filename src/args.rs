@@ -1,7 +1,7 @@
-use std::path::Path;
 use std::process::exit;
 use std::str::Chars;
 use std::vec;
+use std::{collections::HashSet, path::Path};
 
 use crate::argparser::{ArgError, ArgParser, argv};
 use std::sync::OnceLock;
@@ -14,6 +14,7 @@ impl Args {}
 pub struct Args {
     pub infiles: Vec<String>,
     pub debug: bool,
+    pub breakpoints: HashSet<u16>,
     argv: vec::IntoIter<String>,
 }
 
@@ -28,6 +29,12 @@ impl ArgParser for Args {
     fn flag(&mut self, c: char, it: &mut Chars) -> Result<(), ArgError> {
         match c {
             'g' => self.debug = true,
+            'b' => {
+                let s: String = self.value(it, 'b')?;
+                let addr =
+                    u16::from_str_radix(&s, 16).or(Err(ArgError::WrongValue('b', "invalid addres".to_string())))?;
+                self.breakpoints.insert(addr);
+            }
             'h' => Self::help(),
             c => return Err(ArgError::UnknownOption(c)),
         }
@@ -36,7 +43,7 @@ impl ArgParser for Args {
 }
 
 impl Default for Args {
-    fn default() -> Self { Self { infiles: Vec::default(), debug: false, argv: argv() } }
+    fn default() -> Self { Self { infiles: Vec::default(), debug: false, breakpoints: HashSet::new(), argv: argv() } }
 }
 
 impl Args {
@@ -58,10 +65,4 @@ impl Args {
         println!("usage: retro_emu rom.gb [-g]");
         exit(0);
     }
-    pub fn init() -> Result<&'static Self, ArgError> {
-        let parsed = Self::parse()?;
-        Ok(ARGS.get_or_init(|| parsed))
-    }
-
-    pub fn get() -> &'static Self { ARGS.get().expect("Args::get() called before Args::init()") }
 }
