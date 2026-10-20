@@ -90,12 +90,3 @@ impl Bus {
     pub const fn get_pixels(&self) -> &[u8] { self.ppu.get_pixels() }
     pub fn take_redraw(&mut self) -> bool { self.ppu.take_redraw() }
 }
-
-// pub fn read_u16(&mut self, addr: u16) -> u16 {
-//     u16::from_be_bytes([self.read(addr), self.read(addr.wrapping_add(1))])
-// }
-// pub fn ticks(&mut self, ticks: u8) {
-//     for _ in 0..ticks {
-//         self.tick();
-//     }
-// }

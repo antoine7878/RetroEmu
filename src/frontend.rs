@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::io::Write;
 use std::process::Command;
 use std::sync::mpsc::Receiver;
 use std::thread::sleep;
@@ -95,10 +94,11 @@ impl Frontend {
             if let Mode::Running = self.mode
                 && let Some(reason) = game_boy.run_frame(self.dbg.as_mut())
             {
-                println!("{reason}");
-                game_boy.print_disassembly(5);
+                if let Some(dbg) = self.dbg.as_mut() {
+                    dbg.log(reason.to_string());
+                }
                 self.focus_terminal();
-                self.pause();
+                self.pause(game_boy);
             }
 
             self.draw(game_boy)?;
@@ -131,7 +131,7 @@ impl Frontend {
                 self.canvas.window_mut().raise();
             }
             DebugAction::Step => self.mode = Mode::Running,
-            DebugAction::Stay => self.pause(),
+            DebugAction::Stay => self.pause(game_boy),
         }
     }
 
@@ -141,9 +141,10 @@ impl Frontend {
         }
     }
 
-    fn pause(&mut self) {
+    fn pause(&mut self, game_boy: &GameBoy) {
         self.mode = Mode::Paused;
-        print!("(gbdb) ");
-        let _ = std::io::stdout().flush();
+        if let Some(dbg) = &self.dbg {
+            dbg.draw(game_boy);
+        }
     }
 }

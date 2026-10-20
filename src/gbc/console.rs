@@ -33,24 +33,29 @@ impl GameBoy {
 
     pub fn take_redraw(&mut self) -> bool { self.bus.take_redraw() }
 
-    pub fn print_registers(&self) {
-        self.cpu.print();
-        println!(
-            " PCMEM:{:02X},{:02X},{:02X},{:02X}",
-            self.bus.read_log(self.cpu.pc()),
-            self.bus.read_log(self.cpu.pc() + 1),
-            self.bus.read_log(self.cpu.pc() + 2),
-            self.bus.read_log(self.cpu.pc() + 3)
-        );
+    pub fn registers(&self) -> Vec<String> {
+        let r = self.cpu.registers();
+        let flag = |bit, name| if bit == 1 { name } else { '-' };
+        let flags = [flag(r.get_z(), 'Z'), flag(r.get_n(), 'N'), flag(r.get_h(), 'H'), flag(r.get_c(), 'C')];
+        vec![
+            format!("AF {:04X}  {}", r.get_af(), String::from_iter(flags)),
+            format!("BC {:04X}", r.get_bc()),
+            format!("DE {:04X}", r.get_de()),
+            format!("HL {:04X}", r.get_hl()),
+            format!("SP {:04X}", r.get_sp()),
+            format!("PC {:04X}", r.pc()),
+        ]
     }
 
-    pub fn print_disassembly(&self, count: usize) {
-        let mut addr = self.cpu.pc();
-        for i in 0..count {
+    pub fn pc(&self) -> u16 { self.cpu.pc() }
+
+    pub fn disassembly(&self, mut addr: u16, count: usize) -> Vec<(u16, String)> {
+        let mut lines = Vec::with_capacity(count);
+        for _ in 0..count {
             let (text, len) = Instruction::disassemble(addr, |a| self.bus.read_log(a));
-            let marker = if i == 0 { "=>" } else { "  " };
-            println!("{marker} ${addr:04X}  {text}");
+            lines.push((addr, text));
             addr = addr.wrapping_add(len);
         }
+        lines
     }
 }

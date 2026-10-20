@@ -494,9 +494,7 @@ impl Cpu {
         self.set_r8(bus, r, value);
     }
 
-    pub fn print(&self) {
-        print!("{}", self.registers);
-    }
+    pub const fn registers(&self) -> &CpuRegisters { &self.registers }
 }
 
 const DAA: FlagSpec = FlagSpec::znhc("R-0R");
