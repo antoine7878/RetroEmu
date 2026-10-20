@@ -79,6 +79,7 @@ impl Bus {
     // }
 
     pub fn tick(&mut self) {
+        crate::CYCLES.store(self.cycle_count, std::sync::atomic::Ordering::Relaxed);
         // let dots = if self.double_speed { 2 } else { 4 };
         let dots = 4;
         self.ppu.ticks(dots, &mut self.ifl);

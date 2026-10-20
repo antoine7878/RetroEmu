@@ -37,10 +37,9 @@ impl<const USED_MASK: u8> PartialEq for IORegister<USED_MASK> {
 }
 
 impl<const USED_MASK: u8> IOReg for IORegister<USED_MASK> {
-    fn read(&self) -> u8 { self.raw | !USED_MASK }
+    fn read(&self) -> u8 { self.raw & USED_MASK }
     fn write(&mut self, value: u8) { self.raw = value & USED_MASK }
 }
-
 pub trait IOReg {
     fn read(&self) -> u8;
     fn write(&mut self, value: u8);

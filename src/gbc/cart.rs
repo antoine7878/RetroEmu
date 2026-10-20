@@ -1,9 +1,11 @@
 use std::collections::HashSet;
 
-use super::constants::{CARTIDGE_TYPE, RAM_SIZE_FLAG, ROM_SIZE_FLAG};
+use sdl2::log::log_critical;
+
+use super::constants::{CARTIDGE_TYPE, CRAM_START, RAM_SIZE_FLAG, ROM_SIZE_FLAG};
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
-pub enum MBC {
+pub enum Mbc {
     Mbc1,
     Mbc2,
     Mbc3,
@@ -25,7 +27,7 @@ pub enum MBC {
 pub struct Cartridge {
     rom: Vec<u8>,
     cram: Vec<u8>,
-    mbcs: HashSet<MBC>,
+    mbcs: HashSet<Mbc>,
     rom_banks: u16,
     ram_banks: u16,
 }
@@ -41,39 +43,51 @@ impl Cartridge {
     }
 
     pub fn read_rom(&self, addr: u16) -> u8 { self.rom[addr as usize] }
-    pub fn read_ram(&self, addr: u16) -> u8 { self.cram[addr as usize] }
-    pub fn write_ram(&mut self, addr: u16, value: u8) { self.rom[addr as usize] = value }
 
-    fn mbcs(rom: &[u8]) -> HashSet<MBC> {
-        let s: &[MBC] = match rom[CARTIDGE_TYPE] {
+    pub fn read_ram(&self, addr: u16) -> u8 {
+        if self.cram.is_empty() {
+            return 0xFF;
+        }
+        self.cram[(addr - CRAM_START) as usize]
+    }
+
+    pub fn write_ram(&mut self, addr: u16, value: u8) {
+        if self.cram.is_empty() {
+            return;
+        }
+        self.rom[(addr - CRAM_START) as usize] = value
+    }
+
+    fn mbcs(rom: &[u8]) -> HashSet<Mbc> {
+        let s: &[Mbc] = match rom[CARTIDGE_TYPE] {
             0x00 => &[],
-            0x01 => &[MBC::Mbc1],
-            0x02 => &[MBC::Mbc1, MBC::Ram],
-            0x03 => &[MBC::Mbc1, MBC::Ram, MBC::Battery],
-            0x05 => &[MBC::Mbc2],
-            0x06 => &[MBC::Mbc2, MBC::Battery],
-            0x08 => &[MBC::Ram],
-            0x09 => &[MBC::Ram, MBC::Battery],
-            0x0B => &[MBC::Mmm01],
-            0x0C => &[MBC::Mmm01, MBC::Ram],
-            0x0D => &[MBC::Mmm01, MBC::Ram, MBC::Battery],
-            0x0F => &[MBC::Mbc3, MBC::Timer, MBC::Battery],
-            0x10 => &[MBC::Mbc3, MBC::Timer, MBC::Ram, MBC::Battery],
-            0x11 => &[MBC::Mbc3],
-            0x12 => &[MBC::Mbc3, MBC::Ram],
-            0x13 => &[MBC::Mbc3, MBC::Ram, MBC::Battery],
-            0x19 => &[MBC::Mbc5],
-            0x1A => &[MBC::Mbc5, MBC::Ram],
-            0x1B => &[MBC::Mbc5, MBC::Ram, MBC::Battery],
-            0x1C => &[MBC::Mbc5, MBC::Rumble],
-            0x1D => &[MBC::Mbc5, MBC::Rumble, MBC::Ram],
-            0x1E => &[MBC::Mbc5, MBC::Rumble, MBC::Ram, MBC::Battery],
-            0x20 => &[MBC::Mbc6],
-            0x22 => &[MBC::Mbc7, MBC::Sensor, MBC::Rumble, MBC::Ram, MBC::Battery],
-            0xFC => &[MBC::Camera],
-            0xFD => &[MBC::Tama5],
-            0xFE => &[MBC::HuC3],
-            0xFF => &[MBC::HuC1, MBC::Ram, MBC::Battery],
+            0x01 => &[Mbc::Mbc1],
+            0x02 => &[Mbc::Mbc1, Mbc::Ram],
+            0x03 => &[Mbc::Mbc1, Mbc::Ram, Mbc::Battery],
+            0x05 => &[Mbc::Mbc2],
+            0x06 => &[Mbc::Mbc2, Mbc::Battery],
+            0x08 => &[Mbc::Ram],
+            0x09 => &[Mbc::Ram, Mbc::Battery],
+            0x0B => &[Mbc::Mmm01],
+            0x0C => &[Mbc::Mmm01, Mbc::Ram],
+            0x0D => &[Mbc::Mmm01, Mbc::Ram, Mbc::Battery],
+            0x0F => &[Mbc::Mbc3, Mbc::Timer, Mbc::Battery],
+            0x10 => &[Mbc::Mbc3, Mbc::Timer, Mbc::Ram, Mbc::Battery],
+            0x11 => &[Mbc::Mbc3],
+            0x12 => &[Mbc::Mbc3, Mbc::Ram],
+            0x13 => &[Mbc::Mbc3, Mbc::Ram, Mbc::Battery],
+            0x19 => &[Mbc::Mbc5],
+            0x1A => &[Mbc::Mbc5, Mbc::Ram],
+            0x1B => &[Mbc::Mbc5, Mbc::Ram, Mbc::Battery],
+            0x1C => &[Mbc::Mbc5, Mbc::Rumble],
+            0x1D => &[Mbc::Mbc5, Mbc::Rumble, Mbc::Ram],
+            0x1E => &[Mbc::Mbc5, Mbc::Rumble, Mbc::Ram, Mbc::Battery],
+            0x20 => &[Mbc::Mbc6],
+            0x22 => &[Mbc::Mbc7, Mbc::Sensor, Mbc::Rumble, Mbc::Ram, Mbc::Battery],
+            0xFC => &[Mbc::Camera],
+            0xFD => &[Mbc::Tama5],
+            0xFE => &[Mbc::HuC3],
+            0xFF => &[Mbc::HuC1, Mbc::Ram, Mbc::Battery],
             _ => panic!("invalide cartridge type"),
         };
         HashSet::from_iter(s.iter().cloned())
@@ -81,7 +95,7 @@ impl Cartridge {
 
     fn rom_banks(rom: &[u8]) -> u16 {
         match rom[ROM_SIZE_FLAG] {
-            s @ (0x00 | 0x01 | 0x02 | 0x03 | 0x04 | 0x05 | 0x06 | 0x07 | 0x08) => 1 << (s + 1),
+            s @ (0x00..0x08) => 1 << (s + 1),
             0x52 => 72,
             0x53 => 80,
             0x54 => 96,

@@ -23,7 +23,7 @@ pub struct Cpu {
     ime: bool,
     registers: Registers,
     prev: Option<Instruction>,
-    ellipse: bool,
+    prev_count: u64,
 }
 
 impl Cpu {
@@ -36,7 +36,7 @@ impl Cpu {
             ime: false,
             registers: Registers::default(),
             prev: None,
-            ellipse: true,
+            prev_count: 0,
         }
     }
 
@@ -45,14 +45,14 @@ impl Cpu {
         let instruction = Instruction::decode(opcode);
         if Args::get().debug {
             if self.prev.is_some_and(|prev| prev == instruction) {
-                if !self.ellipse {
-                    log::log("...");
-                    self.ellipse = true;
-                }
+                self.prev_count += 1;
             } else {
+                if self.prev_count > 0 {
+                    log::log(&format!("       ... (x{})", self.prev_count));
+                    self.prev_count = 0;
+                }
                 self.prev = Some(instruction);
-                self.ellipse = false;
-                log::log(&format!("{}", instruction));
+                log::log(&format!("0x{:04x} {}", self.pc, instruction));
             }
         }
         self.execute(instruction, bus)

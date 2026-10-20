@@ -1,3 +1,5 @@
+use sdl2::log::log;
+
 use super::constants::{
     BGP, DMA, LCDC, LCDC_OFF, LY, LYC, OAM_END, OAM_SIZE, OAM_START, OBP0, OBP1, SCX, SCY, STAT, VBK, VRAM_END,
     VRAM_SIZE, VRAM_START, WX, WY,
@@ -242,7 +244,7 @@ impl Ppu {
             let x = scx.wrapping_add(x as u8);
             let tile_col = (x / 8) as u16;
 
-            let id = self.read_vram(bg_map + tile_row * 32 + tile_col);
+            let id = self.read(bg_map + tile_row * 32 + tile_col);
             // do it once every : x % 8 == 0
             let tile = self.get_tile(id);
             let lo = tile[line * 2];

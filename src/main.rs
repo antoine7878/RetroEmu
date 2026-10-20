@@ -1,3 +1,4 @@
+#![allow(unused)]
 mod argparser;
 mod args;
 mod frontend;
@@ -5,6 +6,7 @@ mod gbc;
 
 use std::fs;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use sdl2::log::{self, Category, Priority};
@@ -13,11 +15,20 @@ use args::Args;
 use gbc::GameBoy;
 
 use crate::gbc::Config;
-static START: OnceLock<Instant> = OnceLock::new();
 
-fn my_logger(priority: Priority, category: Category, msg: &str) {
-    let t = START.get_or_init(Instant::now).elapsed().as_secs_f64();
-    eprintln!("[{:.6}] [{:?}][{:?}] {}", t * 1000., priority, category, msg);
+static START: OnceLock<Instant> = OnceLock::new();
+pub static CYCLES: AtomicU64 = AtomicU64::new(0);
+
+fn my_logger(priority: Priority, _: Category, msg: &str) {
+    let ms = START.get_or_init(Instant::now).elapsed().as_secs_f64() * 1000.0;
+    let c = CYCLES.load(Ordering::Relaxed);
+    let (tag, color) = match priority {
+        Priority::Critical | Priority::Error => ("ERR", "\x1b[31m"),
+        Priority::Warn => ("WRN", "\x1b[33m"),
+        Priority::Info => ("INF", "\x1b[32m"),
+        _ => ("DBG", "\x1b[36m"),
+    };
+    eprintln!("\x1b[90m{ms:>9.3}ms {c:>10}\x1b[0m {color}{tag}\x1b[0m {msg}");
 }
 
 fn main() {
