@@ -13,7 +13,7 @@ use sdl2::video::{Window, WindowContext};
 use sdl2::{EventPump, Sdl};
 
 use crate::args::Args;
-use crate::gbc::{Debugger, FRAME_TIME, GameBoy, HEIGHT, SCALE, WIDTH};
+use crate::gbc::{DebugAction, Debugger, FRAME_TIME, GameBoy, HEIGHT, SCALE, WIDTH};
 
 enum Mode {
     Running,
@@ -122,65 +122,16 @@ impl Frontend {
 
     fn handle_command(&mut self, cmd: &str, game_boy: &mut GameBoy) {
         let Some(dbg) = self.dbg.as_mut() else { return };
-        let mut it = cmd.split_whitespace();
         self.last_cmd = cmd.to_string();
-        match it.next() {
-            Some("c") => {
-                dbg.resume();
+        match dbg.handle_command(cmd, game_boy) {
+            DebugAction::Continue => {
                 self.mode = Mode::Running;
                 self.canvas.window_mut().raise();
-                return;
             }
-            Some("s") => {
-                let n = Self::parse_int(it.next());
-                dbg.step(n);
-                self.mode = Mode::Running;
-                return;
-            }
-            Some("r") => game_boy.print_registers(),
-            Some("b") => {
-                if let Some(addr) = Self::parse_addr(it.next())
-                    && dbg.breakpoints.insert(addr)
-                {
-                    println!("Breakpoint added at ${addr:04X}");
-                }
-            }
-            Some("d") => {
-                if let Some(addr) = Self::parse_addr(it.next())
-                    && dbg.breakpoints.remove(&addr)
-                {
-                    println!("Breakpoint removed at ${addr:04X}");
-                }
-            }
-            Some("bl") => {
-                println!("Breakpoints:");
-                for b in dbg.breakpoints.iter() {
-                    println!("${b:04X}");
-                }
-            }
-            Some("h") => {
-                println!("Commands:");
-                println!("  c            continue");
-                println!("  s [n]        step n instructions (default 1)");
-                println!("  r, reg       print registers");
-                println!("  b $<addr>    set breakpoint at hex addr");
-                println!("  d $<addr>    delete breakpoint at hex addr");
-                println!("  bl           list breakpoints");
-                println!("  h            show this help");
-                println!("  <enter>      repeat last command");
-            }
-            Some(other) => {
-                println!("unknown command: {other}");
-            }
-            None => (),
+            DebugAction::Step => self.mode = Mode::Running,
+            DebugAction::Stay => self.pause(),
         }
-        self.pause();
     }
-
-    fn parse_addr(s: Option<&str>) -> Option<u16> {
-        s?.strip_prefix('$').and_then(|hex| u16::from_str_radix(hex, 16).ok())
-    }
-    fn parse_int(s: Option<&str>) -> u32 { s.and_then(|s| s.parse().ok()).unwrap_or(1) }
 
     fn focus_terminal(&self) {
         if let Some(id) = &self.terminal {
