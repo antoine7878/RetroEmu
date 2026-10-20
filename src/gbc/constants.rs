@@ -37,19 +37,12 @@ pub const CARRY_FLAG: u8 = 4;
 
 // ----- Console --------------------
 
-// pub const CPU_CLOCK: u32 = 1 << 22;
-// pub const CYCLE_PER_SCAN_LINE: u32 = 456;
-// pub const CYCLE_PRE_FRAME: u32 = 154 * CYCLE_PER_SCAN_LINE;
 pub const SCALE: u32 = 2;
 pub const FRAME_RATE: u32 = 60;
 pub const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / FRAME_RATE as u64);
 
 pub const PALETTE_ORIGNAL: [[u8; 3]; 4] =
     [[0x2A, 0x41, 0x39], [0x7B, 0x82, 0x0F], [0x5A, 0x79, 0x42], [0x39, 0x59, 0x4A]];
-// pub const PALETTE_POCKET: [[u8; 3]; 4] =
-//     [[0x18, 0x18, 0x18], [0x4A, 0x51, 0x38], [0x8C, 0x92, 0x6B], [0xC5, 0xCA, 0xA4]];
-// pub const PALETTE_LIGHT: [[u8; 3]; 4] =
-//     [[0x00, 0x50, 0x3A], [0x00, 0x69, 0x4A], [0x00, 0x9A, 0x70], [0x00, 0xB5, 0x82]];
 
 // ----- PPU --------------------
 
