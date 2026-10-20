@@ -12,7 +12,7 @@ impl Default for WRam {
     fn default() -> Self { Self { banks: [[0; WRAM_SIZE]; 8], svbk: IORegister::default() } }
 }
 
-const FIRST_END: u16 = WRAM_START + WRAM_SIZE as u16;
+const FIRST_END: u16 = WRAM_START + (WRAM_SIZE / 2) as u16;
 
 impl WRam {
     pub fn read(&self, addr: u16) -> u8 {

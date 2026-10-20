@@ -4,6 +4,11 @@ use std::str::Chars;
 use std::vec;
 
 use crate::argparser::{ArgError, ArgParser, argv};
+use std::sync::OnceLock;
+
+static ARGS: OnceLock<Args> = OnceLock::new();
+
+impl Args {}
 
 #[derive(Debug)]
 pub struct Args {
@@ -53,4 +58,10 @@ impl Args {
         println!("usage: retro_emu rom.gb [-g]");
         exit(0);
     }
+    pub fn init() -> Result<&'static Self, ArgError> {
+        let parsed = Self::parse()?;
+        Ok(ARGS.get_or_init(|| parsed))
+    }
+
+    pub fn get() -> &'static Self { ARGS.get().expect("Args::get() called before Args::init()") }
 }

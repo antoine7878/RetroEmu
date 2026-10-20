@@ -40,8 +40,8 @@ impl Registers {
     pub const fn set_bc(&mut self, value: u16) { (self.b, self.c) = Self::split_reg(value); }
     pub const fn set_de(&mut self, value: u16) { (self.d, self.e) = Self::split_reg(value); }
     pub const fn set_hl(&mut self, value: u16) { (self.h, self.l) = Self::split_reg(value); }
-    pub const fn inc_sp(&mut self) { self.sp += 1 }
-    pub const fn dec_sp(&mut self) { self.sp -= 1 }
+    pub const fn inc_sp(&mut self) { self.sp = self.sp.wrapping_add(1) }
+    pub const fn dec_sp(&mut self) { self.sp = self.sp.wrapping_sub(1) }
 
     pub const fn set_flags(&mut self, flags: Flags, spec: FlagSpec) {
         let [z, n, h, c] = spec.0;

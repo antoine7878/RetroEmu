@@ -1,3 +1,7 @@
+use sdl2::log;
+
+use crate::args::Args;
+
 use super::bus::Bus;
 use super::constants::PROGRAM_START;
 use super::flag::{FlagSpec, Flags};
@@ -13,51 +17,46 @@ pub enum PowerMode {
     Stop,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum Step {
-    Continue,
-    WaitVblank,
-}
-
 pub struct Cpu {
-    v: [u8; 16],
     pc: u16,
     power_mode: PowerMode,
     ime: bool,
     registers: Registers,
+    prev: Option<Instruction>,
+    ellipse: bool,
 }
 
 impl Cpu {
     pub fn new() -> Self {
+        let mut registers = Registers::default();
+        registers.init(super::config::GCMode::DMG);
         Self {
-            v: [0; 16],
             pc: PROGRAM_START,
             power_mode: PowerMode::default(),
             ime: false,
             registers: Registers::default(),
+            prev: None,
+            ellipse: true,
         }
     }
-
-    pub fn take_pc8(&mut self, bus: &mut Bus) -> u8 {
-        let res = bus.read(self.pc);
-        self.pc = self.pc.wrapping_add(2);
-        res
-    }
-
-    pub fn take_pc16(&mut self, bus: &mut Bus) -> u16 {
-        let r1 = self.take_pc8(bus);
-        let r2 = self.take_pc8(bus);
-        (r1 as u16) << 8 | (r2 as u16)
-    }
-
-    fn map_high_page(addr: u8) -> u16 { 0xFF00 | addr as u16 }
 
     pub fn step(&mut self, bus: &mut Bus) -> u64 {
         let opcode = self.take_pc8(bus);
         let instruction = Instruction::decode(opcode);
+        if Args::get().debug {
+            if self.prev.is_some_and(|prev| prev == instruction) {
+                if !self.ellipse {
+                    log::log("...");
+                    self.ellipse = true;
+                }
+            } else {
+                self.prev = Some(instruction);
+                self.ellipse = false;
+                log::log(&format!("{}", instruction));
+            }
+        }
         self.execute(instruction, bus)
     }
-
     fn execute(&mut self, instruction: Instruction, bus: &mut Bus) -> u64 {
         let mut taken = false;
         match instruction {
@@ -121,6 +120,22 @@ impl Cpu {
         }
         instruction.cycle_count(taken)
     }
+
+    // ----- Utils ------------------------------
+
+    pub fn take_pc8(&mut self, bus: &mut Bus) -> u8 {
+        let res = bus.read(self.pc);
+        self.pc = self.pc.wrapping_add(2);
+        res
+    }
+
+    pub fn take_pc16(&mut self, bus: &mut Bus) -> u16 {
+        let r1 = self.take_pc8(bus);
+        let r2 = self.take_pc8(bus);
+        (r1 as u16) << 8 | (r2 as u16)
+    }
+
+    fn map_high_page(addr: u8) -> u16 { 0xFF00 | addr as u16 }
 
     // ----- Registers Getter/Setter ------------------------------
 
@@ -481,7 +496,7 @@ const INC: FlagSpec = FlagSpec::znhc("R0R-");
 const ADD_HL: FlagSpec = FlagSpec::znhc("-0RR");
 const ADD_SP: FlagSpec = FlagSpec::znhc("00RR");
 const RLCA: FlagSpec = FlagSpec::znhc("000R");
-const CB_RLC: FlagSpec = FlagSpec::znhc("R00R");
+// const CB_RLC: FlagSpec = FlagSpec::znhc("R00R");
 const NOF: FlagSpec = FlagSpec::znhc("----");
 const SHIFT: FlagSpec = FlagSpec::znhc("R00R");
 const BIT: FlagSpec = FlagSpec::znhc("R01-");

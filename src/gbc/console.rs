@@ -1,5 +1,3 @@
-// use std::time::Instant;
-
 use super::bus::Bus;
 use super::config::Config;
 use super::cpu::Cpu;
@@ -17,7 +15,6 @@ impl GameBoy {
     }
 
     pub fn run_frame(&mut self) {
-        // let start_time = Instant::now();
         let start_cycle = self.bus.get_cycle_count();
         while self.bus.get_cycle_count() - start_cycle < self.config.instructions_per_frame {
             let c = self.cpu.step(&mut self.bus);

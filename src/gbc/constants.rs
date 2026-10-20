@@ -2,10 +2,10 @@ use std::time::Duration;
 
 // ----- Memory Size --------------------
 
-pub const WRAM_SIZE: usize = 1 << 12;
-pub const HRAM_SIZE: usize = 0xFFFE - 0xFF80;
-pub const VRAM_SIZE: usize = 1 << 13;
-pub const OAM_SIZE: usize = 40 * 4;
+pub const WRAM_SIZE: usize = (WRAM_END - WRAM_START) as usize;
+pub const HRAM_SIZE: usize = (HRAM_END - HRAM_START) as usize;
+pub const VRAM_SIZE: usize = (VRAM_END - VRAM_START) as usize;
+pub const OAM_SIZE: usize = (OAM_END - OAM_START) as usize;
 
 // ----- Memory Map --------------------
 

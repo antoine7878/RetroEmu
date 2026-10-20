@@ -4,9 +4,10 @@ use super::constants::{
     OAM_START, PPU_END, PPU_START, ROM_END, ROM_START, VRAM_END, VRAM_START, WRAM_END, WRAM_START,
 };
 use super::io::{IOReg, IORegister};
-// use super::memory::Memory;
 use super::ppu::Ppu;
 use super::wram::WRam;
+
+const A: u16 = 0xFFFE - 0xFF80;
 
 pub struct Bus {
     cart: Cartridge,

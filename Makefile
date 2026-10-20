@@ -1,2 +1,2 @@
 test:
-	cargo run ./gb-test-roms/cpu_instrs/cpu_instrs.gb
+	cargo run ./gb-test-roms/cpu_instrs/individual/01-special.gb -g
