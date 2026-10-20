@@ -1,3 +1,5 @@
+use crate::gbc::joypad::Joypad;
+
 use super::cart::Cartridge;
 use super::constants::{
     CRAM_END, CRAM_START, ECHO_END, ECHO_START, HRAM_END, HRAM_SIZE, HRAM_START, NOT_END, NOT_START, OAM_END,
@@ -17,6 +19,7 @@ pub struct Bus {
     cycle_count: u64,
     ie: IORegister<0x1F>,
     ifl: IORegister<0x1F>,
+    joypad: Joypad,
 }
 
 impl Bus {
@@ -29,6 +32,7 @@ impl Bus {
             cycle_count: 0,
             ie: IORegister::default(),
             ifl: IORegister::default(),
+            joypad: Joypad::default(),
         }
     }
 
@@ -45,6 +49,7 @@ impl Bus {
             HRAM_START..HRAM_END => self.hram[(addr - HRAM_START) as usize],
             0xFF0F => self.ifl.read(),
             0xFFFF => self.ie.read(),
+            0xFF00 => self.joypad.read(),
             _ => todo!("io regs: {:04X}", addr),
         }
     }
@@ -68,6 +73,7 @@ impl Bus {
             HRAM_START..HRAM_END => self.hram[(addr - HRAM_START) as usize] = value,
             0xFF0F => self.ifl.write(value),
             0xFFFF => self.ie.write(value),
+            0xFF00 => self.joypad.write(value),
             _ => todo!("io regs: {:04X}", addr),
         }
     }

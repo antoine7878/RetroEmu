@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::io::Write;
+use std::process::Command;
 use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::Instant;
@@ -28,6 +29,7 @@ pub struct Frontend {
     mode: Mode,
     commands: Receiver<String>,
     last_cmd: String,
+    terminal: Option<String>,
 }
 
 impl Frontend {
@@ -39,7 +41,8 @@ impl Frontend {
         let dbg = Debugger::new(&args);
         let commands = Self::init_debug_thread();
         let last_cmd = String::new();
-        Ok(Self { sdl, event_pump, canvas, texture, dbg, mode, commands, last_cmd })
+        let terminal = std::env::var("__CFBundleIdentifier").ok();
+        Ok(Self { sdl, event_pump, canvas, texture, dbg, mode, commands, last_cmd, terminal })
     }
 
     fn init_texture(sdl: &Sdl) -> Result<(Canvas<Window>, Texture), Box<dyn Error>> {
@@ -92,6 +95,7 @@ impl Frontend {
                 && let Some(reason) = game_boy.run_frame(self.dbg.as_mut())
             {
                 println!("{reason}");
+                self.focus_terminal();
                 self.pause();
             }
 
@@ -124,6 +128,7 @@ impl Frontend {
             Some("c") => {
                 dbg.resume();
                 self.mode = Mode::Running;
+                self.canvas.window_mut().raise();
                 return;
             }
             Some("s") => {
@@ -159,6 +164,12 @@ impl Frontend {
 
     fn parse_addr(s: Option<&str>) -> u16 { s.and_then(|s| u16::from_str_radix(s, 16).ok()).unwrap_or(1_u16) }
     fn parse_int(s: Option<&str>) -> u32 { s.and_then(|s| s.parse().ok()).unwrap_or(1) }
+
+    fn focus_terminal(&self) {
+        if let Some(id) = &self.terminal {
+            let _ = Command::new("open").args(["-b", id]).status();
+        }
+    }
 
     fn pause(&mut self) {
         self.mode = Mode::Paused;
