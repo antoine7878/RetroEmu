@@ -141,18 +141,35 @@ impl Frontend {
                 game_boy.print_registers();
             }
             Some("b") => {
-                let addr = Self::parse_addr(it.next());
-                dbg.breakpoints.insert(addr);
+                let Some(a) = it.next() else { return };
+                let addr = Self::parse_addr(a);
+                if dbg.breakpoints.insert(addr) {
+                    println!("Added breakpoint at ${addr:04X}")
+                }
             }
             Some("d") => {
-                let addr = Self::parse_addr(it.next());
-                dbg.breakpoints.remove(&addr);
+                let Some(a) = it.next() else { return };
+                let addr = Self::parse_addr(a);
+                if dbg.breakpoints.remove(&addr) {
+                    println!("Removed breakpoint at ${addr:04X}")
+                }
             }
             Some("bl") => {
                 println!("Breakpoints:");
                 for b in dbg.breakpoints.iter() {
-                    println!("{:04x}", b);
+                    println!("${:04x}", b);
                 }
+            }
+            Some("h") => {
+                println!("Commands:");
+                println!("  c            continue");
+                println!("  s [n]        step n instructions (default 1)");
+                println!("  r, reg       print registers");
+                println!("  b <addr>     set breakpoint at hex addr");
+                println!("  d <addr>     delete breakpoint at hex addr");
+                println!("  bl           list breakpoints");
+                println!("  h            show this help");
+                println!("  <enter>      repeat last command");
             }
             Some(other) => {
                 println!("unknown command: {other}");
@@ -162,7 +179,7 @@ impl Frontend {
         self.pause();
     }
 
-    fn parse_addr(s: Option<&str>) -> u16 { s.and_then(|s| u16::from_str_radix(s, 16).ok()).unwrap_or(1_u16) }
+    fn parse_addr(s: &str) -> u16 { u16::from_str_radix(s, 16).ok().unwrap_or(1_u16) }
     fn parse_int(s: Option<&str>) -> u32 { s.and_then(|s| s.parse().ok()).unwrap_or(1) }
 
     fn focus_terminal(&self) {
