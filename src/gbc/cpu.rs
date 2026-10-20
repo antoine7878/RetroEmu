@@ -33,7 +33,10 @@ impl Cpu {
 
     pub fn step(&mut self, bus: &mut Bus) -> u64 {
         let opcode = self.take_pc8(bus);
-        let instruction = Instruction::decode(opcode);
+        let instruction = match opcode {
+            0xCB => Instruction::prefix(self.take_pc8(bus)),
+            _ => Instruction::decode(opcode),
+        };
         self.execute(instruction, bus)
     }
 
@@ -196,10 +199,10 @@ impl Cpu {
     }
 
     fn ldhac(&mut self, bus: &mut Bus) {
-        let a = self.get_r8(bus, R8::A);
-        let addr = Self::map_high_page(a);
-        let value = self.get_r8(bus, R8::C);
-        bus.write(addr, value);
+        let c = self.get_r8(bus, R8::C);
+        let addr = Self::map_high_page(c);
+        let value = bus.read(addr);
+        self.set_r8(bus, R8::A, value);
     }
 
     fn ldr16a(&mut self, bus: &mut Bus, rm: R16Mem) {
@@ -251,15 +254,13 @@ impl Cpu {
     }
 
     fn ldhabsa(&mut self, bus: &mut Bus) {
-        let imm = self.take_pc8(bus);
-        let addr = Self::map_high_page(imm);
+        let addr = self.take_pc16(bus);
         let value = self.get_r8(bus, R8::A);
         bus.write(addr, value);
     }
 
     fn ldhaabs(&mut self, bus: &mut Bus) {
-        let imm = self.take_pc8(bus);
-        let addr = Self::map_high_page(imm);
+        let addr = self.take_pc16(bus);
         let value = bus.read(addr);
         self.set_r8(bus, R8::A, value);
     }
