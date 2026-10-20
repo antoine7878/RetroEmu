@@ -1,18 +1,14 @@
 use std::error::Error;
 use std::thread::sleep;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::PixelFormatEnum;
+use sdl2::render::{Canvas, Texture};
+use sdl2::video::Window;
 
-use crate::gbc::{FRAME_RATE, GameBoy, HEIGHT, WIDTH};
-
-const SCALE: u32 = 12;
-const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / FRAME_RATE as u64);
-
-const ON_COLOR: [u8; 3] = [0xFF, 0xFF, 0xFF];
-const OFF_COLOR: [u8; 3] = [0x00, 0x00, 0x00];
+use crate::gbc::{FRAME_TIME, GameBoy, HEIGHT, SCALE, WIDTH};
 
 // const KEYMAP: [(Scancode, u8); 16] = [
 //     (Scancode::Num1, 0x1),
@@ -40,6 +36,8 @@ pub fn run(game_boy: &mut GameBoy) -> Result<(), Box<dyn Error>> {
     let window =
         sdl.video()?.window("RetoEmu", WIDTH as u32 * SCALE, HEIGHT as u32 * SCALE).position_centered().build()?;
     let mut canvas = window.into_canvas().present_vsync().build()?;
+    canvas.set_logical_size(WIDTH as u32, HEIGHT as u32)?;
+    canvas.set_integer_scale(true)?;
     let texture_creator = canvas.texture_creator();
     let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, WIDTH as u32, HEIGHT as u32)?;
 
@@ -53,23 +51,9 @@ pub fn run(game_boy: &mut GameBoy) -> Result<(), Box<dyn Error>> {
             }
         }
 
-        // let keyboard = event_pump.keyboard_state();
-
         game_boy.run_frame();
 
-        if game_boy.take_redraw() {
-            texture.with_lock(None, |buffer, pitch| {
-                for (y, row) in game_boy.pixels().chunks(WIDTH).enumerate() {
-                    for (x, &lit) in row.iter().enumerate() {
-                        let offset = y * pitch + x * 3;
-                        let color = if lit != 0 { ON_COLOR } else { OFF_COLOR };
-                        buffer[offset..offset + 3].copy_from_slice(&color);
-                    }
-                }
-            })?;
-            canvas.copy(&texture, None, None)?;
-            canvas.present();
-        }
+        draw(game_boy, &mut texture, &mut canvas)?;
 
         let now = Instant::now();
         match next_frame.checked_duration_since(now) {
@@ -77,6 +61,15 @@ pub fn run(game_boy: &mut GameBoy) -> Result<(), Box<dyn Error>> {
             None if now - next_frame > FRAME_TIME * 5 => next_frame = now,
             None => {}
         }
+    }
+    Ok(())
+}
+
+fn draw(game_boy: &mut GameBoy, texture: &mut Texture, canvas: &mut Canvas<Window>) -> Result<(), Box<dyn Error>> {
+    if game_boy.take_redraw() {
+        texture.update(None, game_boy.pixels(), WIDTH * 3)?;
+        canvas.copy(texture, None, None)?;
+        canvas.present();
     }
     Ok(())
 }

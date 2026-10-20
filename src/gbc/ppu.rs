@@ -1,14 +1,32 @@
+use super::constants::{
+    BGP, DMA, LCDC, LCDC_OFF, LY, LYC, OAM_END, OAM_SIZE, OAM_START, OBP0, OBP1, SCX, SCY, STAT, VBK, VRAM_END,
+    VRAM_SIZE, VRAM_START, WX, WY,
+};
 use super::io::{IOReg, IORegister};
+use super::{HEIGHT, PALETTE_ORIGNAL, WIDTH};
 
-pub const VRAM_SIZE: usize = 1 << 12;
-pub const OAM_SIZE: usize = 40 * 4;
-pub const WIDTH: usize = 160;
-pub const HEIGHT: usize = 144;
+#[derive(PartialEq, Clone, Eq)]
+pub enum PpuMode {
+    HBlank = 0,
+    VBlank = 1,
+    OamScan = 2,
+    Drawing = 3,
+}
 
 pub struct Ppu {
-    vram: [u8; VRAM_SIZE],
-    oam: [u8; OAM_SIZE],
+    pixels: [[[u8; 3]; WIDTH]; HEIGHT],
+    redraw: bool,
+    dot: u16,
 
+    stat_line: bool,
+    mode: PpuMode,
+    window_line: u16,
+
+    objects: [[u8; 4]; 10],
+    objects_len: usize,
+
+    vram: [[u8; VRAM_SIZE]; 2],
+    oam: [u8; OAM_SIZE],
     lcdc: IORegister<0xFF>,
     stat: IORegister<0x7F>,
     scy: IORegister<0xFF>,
@@ -21,13 +39,21 @@ pub struct Ppu {
     opb1: IORegister<0xFF>,
     wy: IORegister<0xFF>,
     wx: IORegister<0xFF>,
+    vbk: IORegister<0x01>,
 }
 
 impl Default for Ppu {
     fn default() -> Self {
         Self {
-            vram: [0; VRAM_SIZE],
+            pixels: [[[0; 3]; WIDTH]; HEIGHT],
+            dot: 0,
+            vram: [[0; VRAM_SIZE]; 2],
             oam: [0; OAM_SIZE],
+            objects: [[0; 4]; 10],
+            objects_len: 0,
+            stat_line: false,
+            redraw: false,
+            window_line: 0,
             lcdc: IORegister::default(),
             stat: IORegister::default(),
             scy: IORegister::default(),
@@ -40,6 +66,8 @@ impl Default for Ppu {
             opb1: IORegister::default(),
             wy: IORegister::default(),
             wx: IORegister::default(),
+            vbk: IORegister::default(),
+            mode: PpuMode::HBlank,
         }
     }
 }
@@ -47,7 +75,8 @@ impl Default for Ppu {
 impl Ppu {
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
-            VRAMS..VRAME => self.vram[addr as usize],
+            VRAM_START..VRAM_END => self.read_vram(addr),
+            OAM_START..OAM_END => self.read_oam(addr),
             LCDC => self.lcdc.read(),
             STAT => self.stat.read(),
             SCY => self.scy.read(),
@@ -60,13 +89,29 @@ impl Ppu {
             OBP1 => self.opb1.read(),
             WY => self.wy.read(),
             WX => self.wx.read(),
+            VBK => self.vbk.read(),
             _ => panic!("Address not in PPU"),
+        }
+    }
+
+    pub fn read_vram(&self, addr: u16) -> u8 {
+        match self.mode {
+            PpuMode::Drawing => 0xFF,
+            _ => self.vram[self.vbk.read() as usize][(addr - VRAM_START) as usize],
+        }
+    }
+
+    pub fn read_oam(&self, addr: u16) -> u8 {
+        match self.mode {
+            PpuMode::OamScan | PpuMode::Drawing => 0xFF,
+            _ => self.oam[(addr - OAM_START) as usize],
         }
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
         match addr {
-            0x8000..0x9FFF => self.vram[addr as usize] = value,
+            VRAM_START..VRAM_END => self.write_vram(addr, value),
+            OAM_START..OAM_END => self.write_oam(addr, value),
             LCDC => self.lcdc.write(value),
             STAT => self.stat.write(value),
             SCY => self.scy.write(value),
@@ -79,22 +124,185 @@ impl Ppu {
             OBP1 => self.opb1.write(value),
             WY => self.wy.write(value),
             WX => self.wx.write(value),
+            VBK => self.vbk.write(value),
             _ => panic!("Address not in PPU"),
         }
     }
-}
 
-const VRAMS: u16 = 0x8000;
-const VRAME: u16 = 0x9FFF;
-const LCDC: u16 = 0xFF40;
-const STAT: u16 = 0xFF41;
-const SCY: u16 = 0xFF42;
-const SCX: u16 = 0xFF43;
-const LY: u16 = 0xFF44;
-const LYC: u16 = 0xFF45;
-const DMA: u16 = 0xFF46;
-const BGP: u16 = 0xFF47;
-const OBP0: u16 = 0xFF48;
-const OBP1: u16 = 0xFF49;
-const WY: u16 = 0xFF4A;
-const WX: u16 = 0xFF4B;
+    pub fn write_vram(&mut self, addr: u16, value: u8) {
+        match self.mode {
+            PpuMode::Drawing => (),
+            _ => self.vram[self.vbk.read() as usize][(addr - VRAM_START) as usize] = value,
+        }
+    }
+
+    pub fn write_oam(&mut self, addr: u16, value: u8) {
+        match self.mode {
+            PpuMode::OamScan | PpuMode::Drawing => (),
+            _ => self.oam[(addr - OAM_START) as usize] = value,
+        }
+    }
+
+    fn tile_offset(&self, id: u8) -> usize {
+        let unsigned = matches!(self.mode, _) || self.lcdc.read() & 0x10 != 0;
+        if unsigned { id as usize * 16 } else { (0x1000 + (id as i8 as i32) * 16) as usize }
+    }
+
+    fn get_tile(&self, id: u8) -> &[u8; 16] {
+        let start = self.tile_offset(id);
+        self.vram[0][start..start + 16].try_into().unwrap()
+    }
+
+    fn set_mode<const T: u8>(&mut self, mode: PpuMode, ifl: &mut IORegister<T>) {
+        self.mode = mode;
+        self.update_stat_line(ifl);
+    }
+
+    fn update_stat_line<const T: u8>(&mut self, ifl: &mut IORegister<T>) {
+        let lyc_match = self.ly == self.lyc;
+
+        let stat = self.stat.read();
+        let line = (stat & 0x08 != 0 && self.mode == PpuMode::HBlank)
+            || (stat & 0x10 != 0 && self.mode == PpuMode::VBlank)
+            || (stat & 0x20 != 0 && self.mode == PpuMode::OamScan)
+            || (stat & 0x40 != 0 && lyc_match);
+
+        if line && !self.stat_line {
+            ifl.set(1);
+        }
+        self.stat_line = line;
+    }
+
+    // pub fn read_stat(&self) -> u8 { &self.stat | ((self.ly == self.lyc) as u8) << 2 | self.mode.clone() as u8 | 0x80 }
+
+    fn tick<const T: u8>(&mut self, ifl: &mut IORegister<T>) {
+        self.dot += 1;
+        match self.mode {
+            PpuMode::OamScan if self.dot == 80 => {
+                self.scan_oam();
+                self.set_mode(PpuMode::Drawing, ifl);
+            }
+            PpuMode::Drawing if self.dot == 252 => {
+                self.render_scanline();
+                self.set_mode(PpuMode::HBlank, ifl);
+            }
+            PpuMode::HBlank | PpuMode::VBlank if self.dot == 456 => {
+                self.dot = 0;
+                self.next_line(ifl);
+            }
+            _ => {}
+        }
+        self.update_stat_line(ifl);
+    }
+
+    fn scan_oam(&mut self) {
+        let line = self.ly.read() as i16 + 16;
+        let height: i16 = if self.lcdc.is_set(2) { 16 } else { 8 };
+
+        self.objects_len = 1;
+        for o in self.oam.as_chunks::<4>().0 {
+            let y = o[0] as i16;
+            if y <= line && line < y + height {
+                self.objects[self.objects_len] = [o[0], o[1], o[2], o[3]];
+                self.objects_len += 1;
+                if self.objects_len == 10 {
+                    break;
+                }
+            }
+        }
+    }
+
+    fn render_scanline(&mut self) {
+        // write row `ly` of self.pixels
+        let mut line_buffer = [0u8; WIDTH];
+        self.render_background(&mut line_buffer);
+        self.render_window(&mut line_buffer);
+        self.render_objects(&mut line_buffer);
+    }
+
+    fn render_background(&mut self, line_buffer: &mut [u8; WIDTH]) {
+        let ly = self.ly.read();
+        let row = &mut self.pixels[ly as usize];
+
+        if self.lcdc.is_clear(0) {
+            row.iter_mut().for_each(|p| *p = PALETTE_ORIGNAL[0]);
+            return;
+        }
+
+        let bg_map: u16 = if self.lcdc.is_clear(3) { 0x9800 } else { 0x9C00 };
+        let scx = self.scx.read();
+        let scy = self.scy.read();
+        let bgp = self.bgp.read();
+
+        let y = scy.wrapping_add(ly);
+        let tile_row = (y / 8) as u16;
+        let line = (y % 8) as usize;
+
+        for (x, lx) in line_buffer.iter_mut().enumerate() {
+            let x = scx.wrapping_add(x as u8);
+            let tile_col = (x / 8) as u16;
+
+            let id = self.read_vram(bg_map + tile_row * 32 + tile_col);
+            // do it once every : x % 8 == 0
+            let tile = self.get_tile(id);
+            let lo = tile[line * 2];
+            let hi = tile[line * 2 + 1];
+
+            let bit = 7 - (x % 8);
+            let color_id = (((hi >> bit) & 1) << 1) | ((lo >> bit) & 1);
+            let shade = (bgp >> (color_id * 2)) & 0b11;
+
+            *lx = shade;
+        }
+    }
+
+    fn render_window(&mut self, _line_buffer: &mut [u8; WIDTH]) {
+        // if self.lcdc.is_clear(0) {
+        //     return;
+        // }
+        // let bg_map = if self.lcdc.is_clear(6) { 0x9800 } else { 0x9C00 };
+        // for i in (0..WIDTH).step_by(8) {}
+    }
+
+    fn render_objects(&mut self, _line_buffer: &mut [u8; WIDTH]) {
+        // if self.lcdc.is_set(1) {
+        //     return;
+        // }
+        // for [y, x, id, attr] in self.objects[0..self.objects_len].iter() {
+        //     let tile = self.get_tile(*id);
+        //     let ly = self.ly.read();
+        // }
+    }
+
+    fn next_line<const T: u8>(&mut self, ifl: &mut IORegister<T>) {
+        self.ly += 1;
+        match self.ly.read() {
+            144 => {
+                self.set_mode(PpuMode::VBlank, ifl);
+                ifl.set(0);
+                self.redraw = true;
+            }
+            154 => {
+                self.ly.write(0);
+                self.window_line = 0;
+                self.set_mode(PpuMode::OamScan, ifl);
+            }
+            0..144 => self.set_mode(PpuMode::OamScan, ifl),
+            _ => (),
+        }
+    }
+
+    pub fn ticks<const T: u8>(&mut self, dots: u8, ifl: &mut IORegister<T>) {
+        if self.lcdc.is_clear(LCDC_OFF) {
+            self.dot = 0;
+            self.ly.write(0);
+            return;
+        }
+        for _ in 0..dots {
+            self.tick(ifl);
+        }
+    }
+
+    pub fn take_redraw(&mut self) -> bool { std::mem::take(&mut self.redraw) }
+    pub const fn get_pixels(&self) -> &[u8] { self.pixels.as_flattened().as_flattened() }
+}

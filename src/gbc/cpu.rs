@@ -1,13 +1,9 @@
 use super::bus::Bus;
+use super::constants::PROGRAM_START;
 use super::flag::{FlagSpec, Flags};
 use super::instruction::{AluOp, Cond, Instruction, R8, R16, R16Mem, R16Stk, ShiftOp};
-use super::memory::PROGRAM_START;
 use super::registers::Registers;
 use super::{alu, shift};
-
-const CPU_CLOCK: u32 = 1 << 22;
-const CYCLE_PER_SCAN_LINE: u32 = 456;
-const CYCLE_PRE_FRAME: u32 = 154 * CYCLE_PER_SCAN_LINE;
 
 #[derive(Debug, PartialEq, Eq, Default)]
 pub enum PowerMode {
@@ -25,7 +21,6 @@ pub enum Step {
 
 pub struct Cpu {
     v: [u8; 16],
-    i: u16,
     pc: u16,
     power_mode: PowerMode,
     ime: bool,
@@ -36,7 +31,6 @@ impl Cpu {
     pub fn new() -> Self {
         Self {
             v: [0; 16],
-            i: 0,
             pc: PROGRAM_START,
             power_mode: PowerMode::default(),
             ime: false,
@@ -44,13 +38,13 @@ impl Cpu {
         }
     }
 
-    pub fn take_pc8(&mut self, bus: &Bus) -> u8 {
+    pub fn take_pc8(&mut self, bus: &mut Bus) -> u8 {
         let res = bus.read(self.pc);
         self.pc = self.pc.wrapping_add(2);
         res
     }
 
-    pub fn take_pc16(&mut self, bus: &Bus) -> u16 {
+    pub fn take_pc16(&mut self, bus: &mut Bus) -> u16 {
         let r1 = self.take_pc8(bus);
         let r2 = self.take_pc8(bus);
         (r1 as u16) << 8 | (r2 as u16)
@@ -123,14 +117,14 @@ impl Cpu {
             Instruction::Res(i, r) => self.res(bus, i, r),
             Instruction::Set(i, r) => self.set(bus, i, r),
 
-            Instruction::Illegal(i) => panic!("Illegal instruction: {i}"),
+            Instruction::Illegal(i) => panic!("Illegal instruction: {i:o}"),
         }
         instruction.cycle_count(taken)
     }
 
     // ----- Registers Getter/Setter ------------------------------
 
-    fn get_r8(&self, bus: &Bus, r: R8) -> u8 {
+    fn get_r8(&self, bus: &mut Bus, r: R8) -> u8 {
         match r {
             R8::HlInd => bus.read(self.registers.get_hl()),
             _ => self.registers.get_r8(r),
@@ -186,14 +180,16 @@ impl Cpu {
 
     fn ldhca(&mut self, bus: &mut Bus) {
         let c = self.get_r8(bus, R8::C);
-        let value = Self::map_high_page(c);
-        bus.write(value, self.get_r8(bus, R8::A));
+        let addr = Self::map_high_page(c);
+        let value = self.get_r8(bus, R8::A);
+        bus.write(addr, value);
     }
 
     fn ldhac(&mut self, bus: &mut Bus) {
         let a = self.get_r8(bus, R8::A);
-        let value = Self::map_high_page(a);
-        bus.write(value, self.get_r8(bus, R8::C));
+        let addr = Self::map_high_page(a);
+        let value = self.get_r8(bus, R8::C);
+        bus.write(addr, value);
     }
 
     fn ldr16a(&mut self, bus: &mut Bus, rm: R16Mem) {
@@ -209,7 +205,7 @@ impl Cpu {
         self.set_r8(bus, R8::A, value);
     }
 
-    fn ldn16(&mut self, bus: &Bus, r: R16) {
+    fn ldn16(&mut self, bus: &mut Bus, r: R16) {
         let n = self.take_pc16(bus);
         self.set_r16(r, n);
     }
@@ -341,7 +337,7 @@ impl Cpu {
         true
     }
 
-    fn ret(&mut self, bus: &Bus, c: Option<Cond>) -> bool {
+    fn ret(&mut self, bus: &mut Bus, c: Option<Cond>) -> bool {
         if !self.condition(c) {
             return false;
         }
@@ -349,7 +345,7 @@ impl Cpu {
         true
     }
 
-    fn reti(&mut self, bus: &Bus) {
+    fn reti(&mut self, bus: &mut Bus) {
         self.ime = true;
         self.ret(bus, None);
     }
@@ -371,12 +367,12 @@ impl Cpu {
         bus.write(self.registers.get_sp(), (value & 0xFF) as u8);
     }
 
-    fn pop(&mut self, bus: &Bus, r: R16Stk) {
+    fn pop(&mut self, bus: &mut Bus, r: R16Stk) {
         let value = self.pop_stack(bus);
         self.registers.set_r16stck(r, value);
     }
 
-    fn pop_stack(&mut self, bus: &Bus) -> u16 {
+    fn pop_stack(&mut self, bus: &mut Bus) -> u16 {
         let hi = bus.read(self.registers.get_sp());
         self.registers.inc_sp();
         let lo = bus.read(self.registers.get_sp());

@@ -1,10 +1,7 @@
+use super::config::GCMode;
+use super::constants::{CARRY_FLAG, HALF_CARRY_FLAG, SUB_FLAG, ZERO_FLAG};
 use super::flag::{FlagSpec, Flags};
 use super::instruction::{R8, R16, R16Stk};
-
-const ZERO_FLAG: u8 = 7;
-const SUB_FLAG: u8 = 6;
-const HALF_CARRY_FLAG: u8 = 5;
-const CARRY_FLAG: u8 = 4;
 
 #[rustfmt::skip]
 #[derive(Default)]
@@ -17,6 +14,17 @@ pub struct Registers {
 }
 
 impl Registers {
+    pub const fn init(&mut self, mode: GCMode) {
+        let (af, bc, de, hl) = match mode {
+            GCMode::DMG => (0x01B0, 0x0013, 0x00D8, 0x014D),
+            GCMode::GBC | GCMode::Enhanced => (0x1180, 0x0000, 0xFF56, 0x000D),
+        };
+        self.set_af(af);
+        self.set_bc(bc);
+        self.set_de(de);
+        self.set_hl(hl);
+        self.sp = 0xFFFE;
+    }
     pub const fn get_a(&self) -> u8 { self.a }
     pub const fn set_a(&mut self, value: u8) { self.a = value; }
 

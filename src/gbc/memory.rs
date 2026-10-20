@@ -1,6 +1,4 @@
-pub const MAX_ROM_SIZE: usize = 0x200000;
-pub const MEMORY_SIZE: usize = 1 << 16;
-pub const PROGRAM_START: u16 = 0;
+use super::constants::MEMORY_SIZE;
 
 pub struct Memory {
     raw: [u8; MEMORY_SIZE],
