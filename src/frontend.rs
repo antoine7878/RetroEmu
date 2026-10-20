@@ -7,8 +7,8 @@ use std::time::Instant;
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::PixelFormatEnum;
-use sdl2::render::{Canvas, Texture, TextureCreator, WindowCanvas};
-use sdl2::video::{Window, WindowContext};
+use sdl2::render::{Canvas, Texture};
+use sdl2::video::Window;
 use sdl2::{EventPump, Sdl};
 
 use crate::args::Args;
@@ -21,7 +21,6 @@ enum Mode {
 }
 
 pub struct Frontend {
-    sdl: Sdl,
     event_pump: EventPump,
     canvas: Canvas<Window>,
     texture: Texture,
@@ -34,7 +33,7 @@ pub struct Frontend {
 
 impl Frontend {
     pub fn new(args: Args, sdl: Sdl) -> Result<Self, Box<dyn Error>> {
-        let mut event_pump = sdl.event_pump()?;
+        let event_pump = sdl.event_pump()?;
 
         let (canvas, texture) = Self::init_texture(&sdl)?;
         let mode = Mode::Running;
@@ -42,7 +41,7 @@ impl Frontend {
         let commands = Self::init_debug_thread();
         let last_cmd = String::new();
         let terminal = std::env::var("__CFBundleIdentifier").ok();
-        Ok(Self { sdl, event_pump, canvas, texture, dbg, mode, commands, last_cmd, terminal })
+        Ok(Self { event_pump, canvas, texture, dbg, mode, commands, last_cmd, terminal })
     }
 
     fn init_texture(sdl: &Sdl) -> Result<(Canvas<Window>, Texture), Box<dyn Error>> {
@@ -56,8 +55,7 @@ impl Frontend {
         canvas.set_logical_size(WIDTH as u32, HEIGHT as u32)?;
         canvas.set_integer_scale(true)?;
         let texture_creator = canvas.texture_creator();
-        let mut texture =
-            texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, WIDTH as u32, HEIGHT as u32)?;
+        let texture = texture_creator.create_texture_streaming(PixelFormatEnum::RGB24, WIDTH as u32, HEIGHT as u32)?;
         Ok((canvas, texture))
     }
 
@@ -125,7 +123,7 @@ impl Frontend {
     fn handle_command(&mut self, cmd: &str, game_boy: &mut GameBoy) {
         let Some(dbg) = self.dbg.as_mut() else { return };
         self.last_cmd = cmd.to_string();
-        match dbg.handle_command(cmd, game_boy) {
+        match dbg.handle_command(cmd) {
             DebugAction::Continue => {
                 self.mode = Mode::Running;
                 self.canvas.window_mut().raise();

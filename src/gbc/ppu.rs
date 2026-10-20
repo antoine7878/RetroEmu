@@ -1,5 +1,3 @@
-use sdl2::log::log;
-
 use super::constants::{
     BGP, DMA, LCDC, LCDC_OFF, LY, LYC, OAM_END, OAM_SIZE, OAM_START, OBP0, OBP1, SCX, SCY, STAT, VBK, VRAM_END,
     VRAM_SIZE, VRAM_START, WX, WY,

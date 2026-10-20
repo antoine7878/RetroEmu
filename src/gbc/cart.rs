@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 
-use sdl2::log::log_critical;
-
 use super::constants::{CARTIDGE_TYPE, CRAM_START, RAM_SIZE_FLAG, ROM_SIZE_FLAG};
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]

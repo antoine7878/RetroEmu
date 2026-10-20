@@ -72,7 +72,7 @@ impl Debugger {
         self.resume();
     }
 
-    pub fn handle_command(&mut self, cmd: &str, game_boy: &GameBoy) -> DebugAction {
+    pub fn handle_command(&mut self, cmd: &str) -> DebugAction {
         self.log(format!("(gbdb) {cmd}"));
         let mut it = cmd.split_whitespace();
         match it.next() {

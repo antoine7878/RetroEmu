@@ -1,14 +1,8 @@
-use std::time::Duration;
-
-use sdl2::log;
-
 use super::bus::Bus;
-use super::constants::PROGRAM_START;
 use super::flag::{FlagSpec, Flags};
-use super::instruction::{self, AluOp, Cond, Instruction, R8, R16, R16Mem, R16Stk, ShiftOp};
+use super::instruction::{AluOp, Cond, Instruction, R8, R16, R16Mem, R16Stk, ShiftOp};
 use super::registers::CpuRegisters;
 use super::{alu, shift};
-use crate::args::Args;
 
 #[derive(Debug, PartialEq, Eq, Default)]
 pub enum PowerMode {
@@ -39,19 +33,6 @@ impl Cpu {
         };
         self.execute(instruction, bus)
     }
-
-    // fn debug(&mut self, instruction: &Instruction) {
-    //     match instruction {
-    //         Instruction::Nop => self.nop_count += 1,
-    //         _ => {
-    //             if self.nop_count > 0 {
-    //                 log::log_debug(&format!("0x{:04x} nop (x{})", self.pc - self.nop_count, self.nop_count));
-    //                 self.nop_count = 0;
-    //             }
-    //             log::log_debug(&format!("0x{:04x} {}", self.pc, instruction));
-    //         }
-    //     }
-    // }
 
     fn execute(&mut self, instruction: Instruction, bus: &mut Bus) -> u64 {
         let mut taken = false;

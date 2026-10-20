@@ -1,4 +1,3 @@
-use std::num::ParseIntError;
 use std::str::Chars;
 use std::{env, fmt, vec};
 
@@ -58,7 +57,6 @@ pub trait ArgParser: Sized {
         Ok(())
     }
 
-    #[allow(unused)]
     fn value<T: TryFrom<String>>(&mut self, it: &mut Chars, opt: char) -> Result<T, ArgError> {
         let mut str_value = it.collect::<String>();
         if str_value.is_empty() {
