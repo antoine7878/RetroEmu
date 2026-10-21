@@ -1,4 +1,5 @@
 use super::bus::Bus;
+use super::constants::DIV;
 use super::flag::{FlagSpec, Flags};
 use super::instruction::{AluOp, Cond, Instruction, R8, R16, R16Mem, R16Stk, ShiftOp};
 use super::registers::CpuRegisters;
@@ -25,7 +26,7 @@ impl Cpu {
         Self { power_mode: PowerMode::default(), ime: false, registers }
     }
 
-    pub fn step(&mut self, bus: &mut Bus) -> u64 {
+    pub fn step(&mut self, bus: &mut Bus) -> u8 {
         let opcode = self.take_pc8(bus);
         let instruction = match opcode {
             0xCB => Instruction::prefix(self.take_pc8(bus)),
@@ -34,11 +35,11 @@ impl Cpu {
         self.execute(instruction, bus)
     }
 
-    fn execute(&mut self, instruction: Instruction, bus: &mut Bus) -> u64 {
+    fn execute(&mut self, instruction: Instruction, bus: &mut Bus) -> u8 {
         let mut taken = false;
         match instruction {
             Instruction::Nop => (),
-            Instruction::Stop => self.power_mode = PowerMode::Stop,
+            Instruction::Stop => self.stop(bus),
             Instruction::Halt => self.power_mode = PowerMode::Halt,
             Instruction::Di => self.ime = false,
             Instruction::Ei => self.ime = true,
@@ -143,6 +144,12 @@ impl Cpu {
             Some(Cond::C) => self.registers.get_c() == 1,
             Some(Cond::NC) => self.registers.get_c() == 0,
         }
+    }
+
+    fn stop(&mut self, bus: &mut Bus) {
+        self.take_pc8(bus);
+        bus.write_internal(DIV, 0);
+        self.power_mode = PowerMode::Stop
     }
 
     // ---- Load 8-bit ------------------------------
