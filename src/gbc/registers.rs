@@ -1,9 +1,7 @@
 use std::fmt;
 
-use crate::gbc::constants::PROGRAM_START;
-
 use super::config::GCMode;
-use super::constants::{CARRY_FLAG, HALF_CARRY_FLAG, SUB_FLAG, ZERO_FLAG};
+use super::constants::{CARRY_FLAG, HALF_CARRY_FLAG, PROGRAM_START, SUB_FLAG, ZERO_FLAG};
 use super::flag::{FlagSpec, Flags};
 use super::instruction::{R8, R16, R16Stk};
 

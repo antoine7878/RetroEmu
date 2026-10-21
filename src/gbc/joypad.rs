@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use crate::gbc::io::IOReg;
+use super::io::IOReg;
 
 const UNUSED_BITS: u8 = 0b1100_0000;
 const SELECT_BUTTONS: u8 = 0b0010_0000;

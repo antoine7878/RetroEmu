@@ -65,7 +65,7 @@ impl Args {
     }
 
     pub fn help() {
-        println!("usage: retro_emu rom.gb [-g]");
+        eprintln!("usage: retro_emu rom.gb [-b $XXXX,] [-gh]");
         exit(0);
     }
 }

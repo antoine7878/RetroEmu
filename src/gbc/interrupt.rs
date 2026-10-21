@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use crate::gbc::io::IORegister;
+use super::io::IORegister;
 
 #[derive(Default)]
 pub struct Interrupt {
