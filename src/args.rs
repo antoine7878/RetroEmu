@@ -46,7 +46,14 @@ impl Args {
     pub fn parse() -> Result<Self, ArgError> {
         let mut parsed = Self::default();
         parsed.walk()?;
+        parsed.process();
         parsed.check()
+    }
+
+    fn process(&mut self) {
+        if !self.breakpoints.is_empty() {
+            self.debug = true;
+        }
     }
 
     fn check(self) -> Result<Self, ArgError> {
