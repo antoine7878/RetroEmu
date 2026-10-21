@@ -6,6 +6,7 @@ pub const WRAM_SIZE: usize = (WRAM_END - WRAM_START) as usize;
 pub const HRAM_SIZE: usize = (HRAM_END - HRAM_START) as usize;
 pub const VRAM_SIZE: usize = (VRAM_END - VRAM_START) as usize;
 pub const OAM_SIZE: usize = (OAM_END - OAM_START) as usize;
+pub const CRAM_SIZE: usize = 1 << 13;
 
 // ----- Memory Map --------------------
 
@@ -23,14 +24,46 @@ pub const OAM_START: u16 = 0xFE00;
 pub const OAM_END: u16 = 0xFEA0;
 pub const NOT_START: u16 = 0xFEA0;
 pub const NOT_END: u16 = 0xFF00;
+
 pub const PPU_START: u16 = 0xFF40;
-pub const PPU_END: u16 = 0xFF50;
+pub const PPU_END: u16 = 0xFF4C;
+
+pub const KEY0: u16 = 0xFF4C;
+pub const KEY1: u16 = 0xFF4D;
+
+pub const VRAM_BS: u16 = 0xFF4F;
+pub const DMA_START: u16 = 0xFF51;
+pub const DMA_END: u16 = 0xFF56;
+pub const PAL_START: u16 = 0xFF68;
+pub const PAL_END: u16 = 0xFF6D;
+
 pub const HRAM_START: u16 = 0xFF80;
 pub const HRAM_END: u16 = 0xFFFF;
 pub const TIMER_START: u16 = 0xFF04;
 pub const TIMER_END: u16 = 0xFF08;
 pub const AUDIO_START: u16 = 0xFF10;
 pub const AUDIO_END: u16 = 0xFF27;
+pub const WAVE_START: u16 = 0xFF30;
+pub const WAVE_END: u16 = 0xFF40;
+
+pub const IF: u16 = 0xFF0F;
+pub const IE: u16 = 0xFFFF;
+pub const JOYPAD: u16 = 0xFF00;
+
+pub const BOOT_DISABLE: u16 = 0xFF50;
+
+pub const U1: u16 = 0xFF03;
+pub const U2S: u16 = 0xFF08;
+pub const U2E: u16 = 0xFF0F;
+pub const U3S: u16 = 0xFF27;
+pub const U3E: u16 = 0xFF30;
+pub const U5: u16 = 0xFF4E;
+pub const U6S: u16 = 0xFF56;
+pub const U6E: u16 = 0xFF68;
+pub const U7S: u16 = 0xFF6D;
+pub const U7E: u16 = 0xFF70;
+pub const U8S: u16 = 0xFF71;
+pub const U8E: u16 = 0xFF80;
 
 // ----- Registers --------------------
 
@@ -90,7 +123,12 @@ pub const PROGRAM_START: u16 = 0x0100;
 
 // ----- TIMER --------------------
 
-pub const TIMER_DIVIDER: u16 = 0xFF04;
-pub const TIMER_COUNTER: u16 = 0xFF05;
-pub const TIMER_MODULO: u16 = 0xFF06;
-pub const TIMER_CTRL: u16 = 0xFF07;
+pub const DIV: u16 = 0xFF04;
+pub const TIMA: u16 = 0xFF05;
+pub const TMA: u16 = 0xFF06;
+pub const TAC: u16 = 0xFF07;
+
+// ----- link --------------------
+
+pub const SB: u16 = 0xFF01;
+pub const SC: u16 = 0xFF02;

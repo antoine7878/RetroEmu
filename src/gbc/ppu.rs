@@ -1,10 +1,8 @@
 use super::constants::{
-    BGP, DMA, LCDC, LCDC_OFF, LY, LYC, OAM_END, OAM_SIZE, OAM_START, OBP0, OBP1, SCX, SCY, STAT, VBK, VRAM_END,
-    VRAM_SIZE, VRAM_START, WX, WY,
+    BGP, DMA, DMA_END, DMA_START, HEIGHT, LCDC, LCDC_OFF, LY, LYC, OAM_END, OAM_SIZE, OAM_START, OBP0, OBP1, PAL_END,
+    PAL_START, PALETTE_ORIGNAL, SCX, SCY, STAT, VBK, VRAM_END, VRAM_SIZE, VRAM_START, WIDTH, WX, WY,
 };
 use super::io::{IOReg, IORegister};
-use super::{HEIGHT, PALETTE_ORIGNAL, WIDTH};
-
 #[derive(PartialEq, Clone, Eq)]
 pub enum PpuMode {
     HBlank = 0,
@@ -77,6 +75,9 @@ impl Ppu {
         match addr {
             VRAM_START..VRAM_END => self.read_vram(addr),
             OAM_START..OAM_END => self.read_oam(addr),
+            // TODO:
+            DMA_START..DMA_END => 0xFF,
+            PAL_START..PAL_END => 0xFF,
             LCDC => self.lcdc.read(),
             STAT => self.stat.read(),
             SCY => self.scy.read(),
@@ -112,6 +113,9 @@ impl Ppu {
         match addr {
             VRAM_START..VRAM_END => self.write_vram(addr, value),
             OAM_START..OAM_END => self.write_oam(addr, value),
+            // TODO:
+            DMA_START..DMA_END => (),
+            PAL_START..PAL_END => (),
             LCDC => self.lcdc.write(value),
             STAT => self.stat.write(value),
             SCY => self.scy.write(value),
@@ -260,7 +264,6 @@ impl Ppu {
         if self.lcdc.is_set(1) {
             return;
         }
-        println!("COUCOU");
         // let object_size = if self.lcdc.is_set(2) { 8 } else { 16 };
         for [title_y, title_x, tile_id, attr] in self.selected_objects[0..self.selected_objects_len].iter() {
             let tile = self.get_tile(*tile_id);
@@ -276,7 +279,6 @@ impl Ppu {
 
             let title_x = *title_x as usize;
 
-            println!("COUCOU");
             for (lx, buffer_pixel) in line_buffer[title_x..title_x + 8].iter_mut().enumerate() {
                 let map_x = title_x.wrapping_add(lx);
 
@@ -317,6 +319,7 @@ impl Ppu {
             self.ly.write(0);
             return;
         }
+        println!("COUCOU");
         for _ in 0..dots {
             self.tick(ifl);
         }

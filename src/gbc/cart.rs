@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use super::constants::{CARTIDGE_TYPE, CRAM_START, RAM_SIZE_FLAG, ROM_SIZE_FLAG};
+use super::constants::{CARTIDGE_TYPE, CRAM_SIZE, CRAM_START, RAM_SIZE_FLAG, ROM_SIZE_FLAG};
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub enum Mbc {
@@ -24,12 +24,21 @@ pub enum Mbc {
     HuC3,
 }
 
+// │ 0000–1FFF │ Turns cartridge RAM on (0x0A in the low nibble) or off │
+// │ 2000–3FFF │ Picks the ROM bank mapped at 4000–7FFF                 │
+// │ 4000–5FFF │ Picks the RAM bank, or the upper ROM bank bits         │
+// │ 6000–7FFF │ Switches banking mode                                  │
+
 pub struct Cartridge {
     rom: Vec<u8>,
-    cram: Vec<u8>,
+    ram: Vec<u8>,
     mbcs: HashSet<Mbc>,
     rom_banks: u16,
     ram_banks: u16,
+    // ram_on: bool,
+    // rom_bank_select: u8,
+    // ram_bank_select: u8,
+    // banking_mode,
 }
 
 impl Cartridge {
@@ -37,25 +46,25 @@ impl Cartridge {
         let mbcs = Self::mbcs(&rom);
         let rom_banks = Self::rom_banks(&rom);
         let ram_banks = Self::ram_banks(&rom);
-        let s = (ram_banks as usize) * (1 << 12);
-        let cram: Vec<u8> = vec![0; s];
-        Self { rom, mbcs, rom_banks, ram_banks, cram }
+        let s = (ram_banks as usize) * CRAM_SIZE;
+        let ram: Vec<u8> = vec![0; s];
+        Self { rom, mbcs, rom_banks, ram_banks, ram }
     }
 
     pub fn read_rom(&self, addr: u16) -> u8 { self.rom[addr as usize] }
 
     pub fn read_ram(&self, addr: u16) -> u8 {
-        if self.cram.is_empty() {
+        if self.ram.is_empty() {
             return 0xFF;
         }
-        self.cram[(addr - CRAM_START) as usize]
+        self.ram[(addr - CRAM_START) as usize]
     }
 
     pub fn write_ram(&mut self, addr: u16, value: u8) {
-        if self.cram.is_empty() {
+        if self.ram.is_empty() {
             return;
         }
-        self.rom[(addr - CRAM_START) as usize] = value
+        self.ram[(addr - CRAM_START) as usize] = value
     }
 
     fn mbcs(rom: &[u8]) -> HashSet<Mbc> {
