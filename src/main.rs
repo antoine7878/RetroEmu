@@ -6,7 +6,7 @@ mod frontend;
 mod gbc;
 
 use std::fs;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU16, Ordering};
 
 use frontend::Frontend;
 
@@ -15,16 +15,12 @@ use gbc::GameBoy;
 
 use crate::gbc::Config;
 
-pub static CYCLES: AtomicU64 = AtomicU64::new(0);
+pub static PC: AtomicU16 = AtomicU16::new(0x0100);
 
 fn main() {
     if let Err(e) = run() {
-        let cycle = CYCLES.load(Ordering::Relaxed);
-        if cycle > 0 {
-            eprintln!("error at cycle {cycle} : {e}");
-        } else {
-            eprintln!("error: {e}");
-        }
+        let cycle = PC.load(Ordering::Relaxed);
+        eprintln!("error at ${cycle:04X}: {e}");
         std::process::exit(1)
     }
 }
