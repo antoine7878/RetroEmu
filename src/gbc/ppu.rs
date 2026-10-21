@@ -26,10 +26,10 @@ pub struct Ppu {
     vram: [[u8; VRAM_SIZE]; 2],
     oam: [u8; OAM_SIZE],
     lcdc: IORegister<0xFF>,
-    stat: IORegister<0x7F>,
+    stat: IORegister<0x78>,
     scy: IORegister<0xFF>,
     scx: IORegister<0xFF>,
-    ly: IORegister<0xFF>,
+    ly: IORegister<0x00, 0xFF>,
     lyc: IORegister<0xFF>,
     dma: IORegister<0xFF>,
     bgp: IORegister<0xFF>,
@@ -79,7 +79,11 @@ impl Ppu {
             DMA_START..DMA_END => 0xFF,
             PAL_START..PAL_END => 0xFF,
             LCDC => self.lcdc.read(),
-            STAT => self.stat.read(),
+            STAT => {
+                self.stat.read() & 0xF8
+                    | ((self.ly.read_raw() == self.lyc.read_raw()) as u8) << 2
+                    | self.mode.clone() as u8
+            }
             SCY => self.scy.read(),
             SCX => self.scx.read(),
             LY => self.ly.read(),
@@ -98,7 +102,7 @@ impl Ppu {
     pub fn read_vram(&self, addr: u16) -> u8 {
         match self.mode {
             PpuMode::Drawing => 0xFF,
-            _ => self.vram[self.vbk.read() as usize][(addr - VRAM_START) as usize],
+            _ => self.vram[self.vbk.read_raw() as usize][(addr - VRAM_START) as usize],
         }
     }
 
@@ -136,7 +140,7 @@ impl Ppu {
     pub fn write_vram(&mut self, addr: u16, value: u8) {
         match self.mode {
             PpuMode::Drawing => (),
-            _ => self.vram[self.vbk.read() as usize][(addr - VRAM_START) as usize] = value,
+            _ => self.vram[self.vbk.read_raw() as usize][(addr - VRAM_START) as usize] = value,
         }
     }
 
@@ -147,13 +151,13 @@ impl Ppu {
         }
     }
 
-    fn tile_offset(&self, id: u8) -> usize {
-        let unsigned = matches!(self.mode, _) || self.lcdc.read() & 0x10 != 0;
+    fn tile_offset(&self, id: u8, object: bool) -> usize {
+        let unsigned = object || self.lcdc.is_set(4);
         if unsigned { id as usize * 16 } else { (0x1000 + (id as i8 as i32) * 16) as usize }
     }
 
-    fn get_tile(&self, id: u8) -> &[u8; 16] {
-        let start = self.tile_offset(id);
+    fn get_tile(&self, id: u8, object: bool) -> &[u8; 16] {
+        let start = self.tile_offset(id, object);
         self.vram[0][start..start + 16].try_into().unwrap()
     }
 
@@ -163,7 +167,7 @@ impl Ppu {
     }
 
     fn update_stat_line<const T: u8>(&mut self, ifl: &mut IORegister<T>) {
-        let lyc_match = self.ly == self.lyc;
+        let lyc_match = self.ly.read_raw() == self.lyc.read_raw();
 
         let stat = self.stat.read();
         let line = (stat & 0x08 != 0 && self.mode == PpuMode::HBlank)
@@ -176,8 +180,6 @@ impl Ppu {
         }
         self.stat_line = line;
     }
-
-    // pub fn read_stat(&self) -> u8 { &self.stat | ((self.ly == self.lyc) as u8) << 2 | self.mode.clone() as u8 | 0x80 }
 
     fn tick<const T: u8>(&mut self, ifl: &mut IORegister<T>) {
         self.dot += 1;
@@ -203,7 +205,7 @@ impl Ppu {
         let line = self.ly.read() as i16 + 16;
         let height: i16 = if self.lcdc.is_set(2) { 16 } else { 8 };
 
-        self.selected_objects_len = 1;
+        self.selected_objects_len = 0;
         for o in self.oam.as_chunks::<4>().0 {
             let y = o[0] as i16;
             if y <= line && line < y + height {
@@ -221,6 +223,9 @@ impl Ppu {
         self.render_background(&mut line_buffer);
         self.render_window(&mut line_buffer);
         self.render_objects(&mut line_buffer);
+        for (x, id) in line_buffer.iter().enumerate() {
+            self.pixels[self.ly.read() as usize][x] = PALETTE_ORIGNAL[*id as usize];
+        }
     }
 
     fn render_background(&mut self, line_buffer: &mut [u8; WIDTH]) {
@@ -245,9 +250,10 @@ impl Ppu {
             let map_x = scx.wrapping_add(lx as u8);
             let tile_col = (map_x / 8) as u16;
 
-            let tile_id = self.read(tile_map_base + tile_row * 32 + tile_col);
+            let addr = tile_map_base + tile_row * 32 + tile_col;
+            let tile_id = self.vram[0][(addr - VRAM_START) as usize];
             // opti: do it once every : x % 8 == 0
-            let tile = self.get_tile(tile_id);
+            let tile = self.get_tile(tile_id, false);
             let low_byte = tile[row_in_tile * 2];
             let high_byte = tile[row_in_tile * 2 + 1];
 
@@ -261,31 +267,24 @@ impl Ppu {
     fn render_objects(&mut self, line_buffer: &mut [u8; WIDTH]) {
         let screen_y = self.ly.read();
 
-        if self.lcdc.is_set(1) {
+        if self.lcdc.is_clear(1) {
             return;
         }
         // let object_size = if self.lcdc.is_set(2) { 8 } else { 16 };
-        for [title_y, title_x, tile_id, attr] in self.selected_objects[0..self.selected_objects_len].iter() {
-            let tile = self.get_tile(*tile_id);
+        for [tile_y, tile_x, tile_id, attr] in self.selected_objects[0..self.selected_objects_len].iter() {
+            let tile = self.get_tile(*tile_id, true);
             // let priority = attr & 0x80 > 0;
             // let flip_y = attr & 0x40 > 0;
             // let flip_x = attr & 0x20 > 0;
-            let palette = attr >> 4 & 1;
-            // let vram_bank = (attr >> 3) & 1;
-            // let cgb_palette = attr & 0b111;
-
-            let map_y = title_y.wrapping_add(screen_y);
-            let row_in_tile = (map_y % 8) as usize;
-
-            let title_x = *title_x as usize;
-
-            for (lx, buffer_pixel) in line_buffer[title_x..title_x + 8].iter_mut().enumerate() {
-                let map_x = title_x.wrapping_add(lx);
-
+            let palette = if attr >> 4 & 1 == 0 { &self.opb0 } else { &self.opb1 }.read();
+            let row_in_tile = ((screen_y + 16 - tile_y) % 8) as usize;
+            let tile_x = *tile_x as usize;
+            for lx in 0..8 {
+                let Some(x) = (tile_x + lx).checked_sub(8).filter(|&x| x < WIDTH) else { continue };
+                let buffer_pixel = &mut line_buffer[x];
                 let low_byte = tile[row_in_tile * 2];
                 let high_byte = tile[row_in_tile * 2 + 1];
-
-                let bit_index = 7 - (map_x % 8);
+                let bit_index = 7 - lx;
                 let color_id = (((high_byte >> bit_index) & 1) << 1) | ((low_byte >> bit_index) & 1);
                 let shade = (palette >> (color_id * 2)) & 0b11;
                 *buffer_pixel = shade;
@@ -304,7 +303,7 @@ impl Ppu {
                 self.redraw = true;
             }
             154 => {
-                self.ly.write(0);
+                self.ly.write_raw(0);
                 self.window_line = 0;
                 self.set_mode(PpuMode::OamScan, ifl);
             }
@@ -316,10 +315,9 @@ impl Ppu {
     pub fn ticks<const T: u8>(&mut self, dots: u8, ifl: &mut IORegister<T>) {
         if self.lcdc.is_clear(LCDC_OFF) {
             self.dot = 0;
-            self.ly.write(0);
+            self.ly.write_raw(0);
             return;
         }
-        println!("COUCOU");
         for _ in 0..dots {
             self.tick(ifl);
         }
