@@ -2,11 +2,13 @@ use crate::gbc::joypad::Joypad;
 
 use super::cart::Cartridge;
 use super::constants::{
-    CRAM_END, CRAM_START, ECHO_END, ECHO_START, HRAM_END, HRAM_SIZE, HRAM_START, NOT_END, NOT_START, OAM_END,
-    OAM_START, PPU_END, PPU_START, ROM_END, ROM_START, VRAM_END, VRAM_START, WRAM_END, WRAM_START,
+    AUDIO_END, AUDIO_START, CRAM_END, CRAM_START, ECHO_END, ECHO_START, HRAM_END, HRAM_SIZE, HRAM_START, NOT_END,
+    NOT_START, OAM_END, OAM_START, PPU_END, PPU_START, ROM_END, ROM_START, TIMER_END, TIMER_START, VRAM_END,
+    VRAM_START, WRAM_END, WRAM_START,
 };
 use super::io::{IOReg, IORegister};
 use super::ppu::Ppu;
+use super::timer::Timer;
 use super::wram::WRam;
 
 pub struct Bus {
@@ -18,6 +20,7 @@ pub struct Bus {
     ie: IORegister<0x1F>,
     ifl: IORegister<0x1F>,
     joypad: Joypad,
+    timer: Timer,
 }
 
 impl Bus {
@@ -31,6 +34,7 @@ impl Bus {
             ie: IORegister::default(),
             ifl: IORegister::default(),
             joypad: Joypad::default(),
+            timer: Timer::default(),
         }
     }
 
@@ -45,6 +49,8 @@ impl Bus {
             NOT_START..NOT_END => 0xFF,
             PPU_START..PPU_END => self.ppu.read(addr),
             HRAM_START..HRAM_END => self.hram[(addr - HRAM_START) as usize],
+            TIMER_START..TIMER_END => self.timer.read(addr),
+            AUDIO_START..AUDIO_END => 0xFF,
             0xFF0F => self.ifl.read(),
             0xFFFF => self.ie.read(),
             0xFF00 => self.joypad.read(),
@@ -69,6 +75,8 @@ impl Bus {
             NOT_START..NOT_END => (),
             PPU_START..PPU_END => self.ppu.write(addr, value),
             HRAM_START..HRAM_END => self.hram[(addr - HRAM_START) as usize] = value,
+            TIMER_START..TIMER_END => self.timer.write(addr, value),
+            AUDIO_START..AUDIO_END => (),
             0xFF0F => self.ifl.write(value),
             0xFFFF => self.ie.write(value),
             0xFF00 => self.joypad.write(value),
@@ -77,7 +85,6 @@ impl Bus {
     }
 
     pub fn tick(&mut self) {
-        crate::CYCLES.store(self.cycle_count, std::sync::atomic::Ordering::Relaxed);
         // let dots = if self.double_speed { 2 } else { 4 };
         let dots = 4;
         self.ppu.ticks(dots, &mut self.ifl);

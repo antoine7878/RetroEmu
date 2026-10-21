@@ -27,6 +27,10 @@ pub const PPU_START: u16 = 0xFF40;
 pub const PPU_END: u16 = 0xFF50;
 pub const HRAM_START: u16 = 0xFF80;
 pub const HRAM_END: u16 = 0xFFFF;
+pub const TIMER_START: u16 = 0xFF04;
+pub const TIMER_END: u16 = 0xFF08;
+pub const AUDIO_START: u16 = 0xFF10;
+pub const AUDIO_END: u16 = 0xFF27;
 
 // ----- Registers --------------------
 
@@ -83,3 +87,10 @@ pub const RAM_SIZE_FLAG: usize = 0x149;
 // ----- CPU --------------------
 
 pub const PROGRAM_START: u16 = 0x0100;
+
+// ----- TIMER --------------------
+
+pub const TIMER_DIVIDER: u16 = 0xFF04;
+pub const TIMER_COUNTER: u16 = 0xFF05;
+pub const TIMER_MODULO: u16 = 0xFF06;
+pub const TIMER_CTRL: u16 = 0xFF07;
