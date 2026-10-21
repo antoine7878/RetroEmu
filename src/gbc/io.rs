@@ -1,11 +1,5 @@
 use std::ops::{AddAssign, BitOr};
 
-// use super::audio::Audio;
-// use super::interrupt::Interrupt;
-// use super::joypad::Joypad;
-// use super::link::Link;
-// use super::timer::Timer;
-
 #[derive(Default)]
 pub struct IORegister<const USED_MASK: u8> {
     raw: u8,

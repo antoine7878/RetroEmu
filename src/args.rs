@@ -1,15 +1,10 @@
 use std::collections::BTreeSet;
+use std::path::Path;
 use std::process::exit;
 use std::str::Chars;
 use std::vec;
-use std::{collections::HashSet, path::Path};
 
 use crate::argparser::{ArgError, ArgParser, argv};
-use std::sync::OnceLock;
-
-static ARGS: OnceLock<Args> = OnceLock::new();
-
-impl Args {}
 
 #[derive(Debug)]
 pub struct Args {

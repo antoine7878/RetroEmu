@@ -1,5 +1,3 @@
-use std::num::ParseIntError;
-
 use super::bus::Bus;
 use super::config::Config;
 use super::cpu::Cpu;
@@ -50,12 +48,13 @@ impl GameBoy {
     pub fn pc(&self) -> u16 { self.cpu.pc() }
 
     pub fn disassembly(&self, mut addr: u16, count: usize) -> Vec<(u16, String)> {
-        let mut lines = Vec::with_capacity(count);
-        for _ in 0..count {
-            let (text, len) = Instruction::disassemble(addr, |a| self.bus.read_log(a));
-            lines.push((addr, text));
-            addr = addr.wrapping_add(len);
-        }
-        lines
+        (0..count)
+            .map(|_| {
+                let (text, len) = Instruction::disassemble(addr, |a| self.bus.read_log(a));
+                let r = (addr, text);
+                addr = addr.wrapping_add(len);
+                r
+            })
+            .collect()
     }
 }

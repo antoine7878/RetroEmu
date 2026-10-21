@@ -6,7 +6,6 @@ mod config;
 mod console;
 mod constants;
 mod cpu;
-// mod error;
 mod flag;
 mod instruction;
 mod interrupt;

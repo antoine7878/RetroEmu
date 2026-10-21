@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 #[derive(Default)]
 pub struct Keypad {
     pressed: u16,

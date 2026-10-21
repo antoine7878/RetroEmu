@@ -21,8 +21,8 @@ pub struct CpuRegisters {
 impl CpuRegisters {
     pub const fn init(&mut self, mode: GCMode) {
         let (af, bc, de, hl) = match mode {
-            GCMode::DMG => (0x01B0, 0x0013, 0x00D8, 0x014D),
-            GCMode::GBC | GCMode::Enhanced => (0x1180, 0x0000, 0xFF56, 0x000D),
+            GCMode::Dmg => (0x01B0, 0x0013, 0x00D8, 0x014D),
+            GCMode::Gbc | GCMode::Enhanced => (0x1180, 0x0000, 0xFF56, 0x000D),
         };
         self.set_af(af);
         self.set_bc(bc);

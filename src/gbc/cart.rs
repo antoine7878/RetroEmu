@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::collections::HashSet;
 
 use super::constants::{CARTIDGE_TYPE, CRAM_START, RAM_SIZE_FLAG, ROM_SIZE_FLAG};

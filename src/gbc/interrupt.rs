@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::gbc::io::IORegister;
 
 #[derive(Default)]

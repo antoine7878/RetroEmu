@@ -384,7 +384,7 @@ impl Instruction {
             0xCB => Self::prefix(read(addr.wrapping_add(1))),
             _ => Self::decode(opcode),
         };
-        let len = instr.shape().0 as u16;
+        let instruction_len = instr.shape().0 as u16;
         let n8 = read(addr.wrapping_add(1));
         let n16 = u16::from_le_bytes([n8, read(addr.wrapping_add(2))]);
         let e8 = match instr {
@@ -398,7 +398,7 @@ impl Instruction {
             .replace("n8", &format!("${n8:02X}"))
             .replace("a8", &format!("$FF{n8:02X}"))
             .replace("e8", &e8);
-        (text, len)
+        (text, instruction_len)
     }
 }
 

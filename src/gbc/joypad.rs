@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::gbc::io::IOReg;
 
 const UNUSED_BITS: u8 = 0b1100_0000;

@@ -21,7 +21,7 @@ pub struct Cpu {
 impl Cpu {
     pub fn new() -> Self {
         let mut registers = CpuRegisters::default();
-        registers.init(super::config::GCMode::DMG);
+        registers.init(super::config::GCMode::Dmg);
         Self { power_mode: PowerMode::default(), ime: false, registers }
     }
 

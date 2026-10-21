@@ -9,8 +9,6 @@ use super::io::{IOReg, IORegister};
 use super::ppu::Ppu;
 use super::wram::WRam;
 
-const A: u16 = 0xFFFE - 0xFF80;
-
 pub struct Bus {
     cart: Cartridge,
     ppu: Ppu,

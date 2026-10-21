@@ -1,16 +1,14 @@
-// #![allow(unused)]
 mod argparser;
 mod args;
+mod color;
 mod debugger;
 mod frontend;
 mod gbc;
 
 use std::fs;
-use std::sync::atomic::AtomicU64;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use frontend::Frontend;
-use sdl2::Sdl;
 
 use args::Args;
 use gbc::GameBoy;
@@ -20,24 +18,24 @@ use crate::gbc::Config;
 pub static CYCLES: AtomicU64 = AtomicU64::new(0);
 
 fn main() {
-    let args = or_exit(Args::parse());
-    let sdl = or_exit(sdl2::init());
-    or_exit(run(args, sdl));
+    if let Err(e) = run() {
+        let cycle = CYCLES.load(Ordering::Relaxed);
+        if cycle > 0 {
+            eprintln!("error at cycle {cycle} : {e}");
+        } else {
+            eprintln!("error: {e}");
+        }
+        std::process::exit(1)
+    }
 }
 
-fn run(args: Args, sdl: Sdl) -> Result<(), Box<dyn std::error::Error>> {
+fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse()?;
+    let sdl = sdl2::init()?;
     let rom_path = args.infiles[0].as_str();
     let rom = fs::read(rom_path).map_err(|e| format!("{rom_path}: {e}"))?;
-    let seed = SystemTime::now().duration_since(UNIX_EPOCH)?.subsec_nanos();
-    let config = Config::new(&rom, seed);
+    let config = Config::new(&rom)?;
     let mut gb = GameBoy::new(rom, config);
     let mut frontend = Frontend::new(args, sdl)?;
     frontend.run(&mut gb)
-}
-
-fn or_exit<T, E: std::fmt::Display>(result: Result<T, E>) -> T {
-    result.unwrap_or_else(|e| {
-        eprintln!("error: {e}");
-        std::process::exit(1)
-    })
 }
