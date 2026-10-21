@@ -96,7 +96,7 @@ impl Cpu {
 
             Instruction::Illegal(i) => panic!("Illegal instruction: {i:o}"),
         }
-        instruction.cycle_count(taken)
+        instruction.internal_cycle_count(taken)
     }
 
     // ----- Utils ------------------------------

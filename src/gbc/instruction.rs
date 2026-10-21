@@ -312,7 +312,7 @@ impl Instruction {
         }
     }
 
-    pub const fn cycle_count(&self, taken: bool) -> u64 {
+    pub const fn internal_cycle_count(&self, taken: bool) -> u8 {
         match self {
             Instruction::Nop
             | Instruction::Stop
@@ -347,24 +347,24 @@ impl Instruction {
             | Instruction::Set(_, _)
             | Instruction::Illegal(_)
             | Instruction::Pop(_)
+            | Instruction::Inc(_)
+            | Instruction::Dec(_)
             | Instruction::JpHl => 0,
 
             Instruction::Inc16(_)
             | Instruction::Dec16(_)
-            | Instruction::Inc(_)
-            | Instruction::Dec(_)
             | Instruction::LdSpHl
             | Instruction::LdHlSp8
-            | Instruction::AddSpImm
             | Instruction::AddHl(_)
             | Instruction::Push(_)
+            | Instruction::Ret(None)
             | Instruction::RetI
             | Instruction::Rst(_)
             | Instruction::Jr(None)
             | Instruction::Jp(None)
             | Instruction::Call(None) => 1,
 
-            Instruction::Ret(None) => 2,
+            Instruction::AddSpImm => 2,
 
             Instruction::Jr(Some(_)) if taken => 1,
             Instruction::Jp(Some(_)) if taken => 1,
