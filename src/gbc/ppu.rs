@@ -213,7 +213,6 @@ impl Ppu {
     }
 
     fn render_scanline(&mut self) {
-        // write row `ly` of self.pixels
         let mut line_buffer = [0u8; WIDTH];
         self.render_background(&mut line_buffer);
         self.render_window(&mut line_buffer);
@@ -230,20 +229,20 @@ impl Ppu {
         }
 
         let tile_map_base: u16 = if self.lcdc.is_clear(3) { 0x9800 } else { 0x9C00 };
-        let scroll_x = self.scx.read();
-        let scroll_y = self.scy.read();
+        let scx = self.scx.read();
+        let scy = self.scy.read();
         let bg_palette = self.bgp.read();
 
-        let map_y = scroll_y.wrapping_add(screen_y);
+        let map_y = scy.wrapping_add(screen_y);
         let tile_row = (map_y / 8) as u16;
         let row_in_tile = (map_y % 8) as usize;
 
-        for (screen_x, line_pixel) in line_buffer.iter_mut().enumerate() {
-            let map_x = scroll_x.wrapping_add(screen_x as u8);
+        for (lx, buffer_pixel) in line_buffer.iter_mut().enumerate() {
+            let map_x = scx.wrapping_add(lx as u8);
             let tile_col = (map_x / 8) as u16;
 
             let tile_id = self.read(tile_map_base + tile_row * 32 + tile_col);
-            // do it once every : x % 8 == 0
+            // opti: do it once every : x % 8 == 0
             let tile = self.get_tile(tile_id);
             let low_byte = tile[row_in_tile * 2];
             let high_byte = tile[row_in_tile * 2 + 1];
@@ -251,29 +250,48 @@ impl Ppu {
             let bit_index = 7 - (map_x % 8);
             let color_id = (((high_byte >> bit_index) & 1) << 1) | ((low_byte >> bit_index) & 1);
             let shade = (bg_palette >> (color_id * 2)) & 0b11;
-
-            *line_pixel = shade;
+            *buffer_pixel = shade;
         }
     }
 
-    fn render_window(&mut self, line_buffer: &mut [u8; WIDTH]) {
-        // if self.lcdc.is_clear(0) {
-        //     return;
-        // }
-        // let bg_map = if self.lcdc.is_clear(6) { 0x9800 } else { 0x9C00 };
-        // for i in (0..WIDTH).step_by(8) {}
-        for (x, lx) in line_buffer.iter_mut().enumerate() {}
-    }
+    fn render_objects(&mut self, line_buffer: &mut [u8; WIDTH]) {
+        let screen_y = self.ly.read();
 
-    fn render_objects(&mut self, _line_buffer: &mut [u8; WIDTH]) {
         if self.lcdc.is_set(1) {
             return;
         }
-        for [y, x, id, attr] in self.selected_objects[0..self.selected_objects_len].iter() {
-            let tile = self.get_tile(*id);
-            let ly = self.ly.read();
+        println!("COUCOU");
+        // let object_size = if self.lcdc.is_set(2) { 8 } else { 16 };
+        for [title_y, title_x, tile_id, attr] in self.selected_objects[0..self.selected_objects_len].iter() {
+            let tile = self.get_tile(*tile_id);
+            // let priority = attr & 0x80 > 0;
+            // let flip_y = attr & 0x40 > 0;
+            // let flip_x = attr & 0x20 > 0;
+            let palette = attr >> 4 & 1;
+            // let vram_bank = (attr >> 3) & 1;
+            // let cgb_palette = attr & 0b111;
+
+            let map_y = title_y.wrapping_add(screen_y);
+            let row_in_tile = (map_y % 8) as usize;
+
+            let title_x = *title_x as usize;
+
+            println!("COUCOU");
+            for (lx, buffer_pixel) in line_buffer[title_x..title_x + 8].iter_mut().enumerate() {
+                let map_x = title_x.wrapping_add(lx);
+
+                let low_byte = tile[row_in_tile * 2];
+                let high_byte = tile[row_in_tile * 2 + 1];
+
+                let bit_index = 7 - (map_x % 8);
+                let color_id = (((high_byte >> bit_index) & 1) << 1) | ((low_byte >> bit_index) & 1);
+                let shade = (palette >> (color_id * 2)) & 0b11;
+                *buffer_pixel = shade;
+            }
         }
     }
+
+    fn render_window(&mut self, _line_buffer: &mut [u8; WIDTH]) {}
 
     fn next_line<const T: u8>(&mut self, ifl: &mut IORegister<T>) {
         self.ly += 1;
