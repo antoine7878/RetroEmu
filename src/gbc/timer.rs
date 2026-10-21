@@ -19,7 +19,7 @@ impl Timer {
             DIV => self.div.read(),
             TIMA => self.tima.read(),
             TMA => self.tma.read(),
-            TAC => self.tac.read(),
+            TAC => self.tac.read_raw(),
             _ => unreachable!(),
         }
     }
@@ -27,7 +27,7 @@ impl Timer {
     pub fn write(&mut self, addr: u16, value: u8) {
         match addr {
             DIV => {
-                self.div.write(0);
+                self.div.write_raw(0);
                 self.div_clock = 0;
             }
             TIMA => self.tima.write(value),
@@ -41,11 +41,11 @@ impl Timer {
     }
 
     const CLOCKS: [u8; 4] = [255, 3, 15, 63];
-    fn reset_tima_clock(&mut self) { self.tima_clock = Self::CLOCKS[self.tac.read() as usize & 0b11]; }
+    fn reset_tima_clock(&mut self) { self.tima_clock = Self::CLOCKS[self.tac.read_raw() as usize & 0b11]; }
 
     pub fn tick(&mut self, ifl: &mut IORegister<0x1F>) {
         self.tick_div();
-        if self.tac.read() & 0b100 == 0 {
+        if self.tac.read_raw() & 0b100 == 0 {
             return;
         }
         if self.tima_clock == 0 {
@@ -66,8 +66,8 @@ impl Timer {
     }
 
     fn tick_tima(&mut self, ifl: &mut IORegister<0x1F>) {
-        if self.tima.read() == 0xFF {
-            self.tima.write(self.tma.read());
+        if self.tima.read_raw() == 0xFF {
+            self.tima.write_raw(self.tma.read_raw());
             ifl.set(2);
         } else {
             self.tima += 1;

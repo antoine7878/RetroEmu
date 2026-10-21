@@ -6,7 +6,7 @@ use super::io::{IOReg, IORegister};
 #[derive(Default)]
 pub struct Link {
     buffer: IORegister<0xFF>,
-    ctrl: IORegister<0x03>,
+    ctrl: IORegister<0x83>,
 }
 
 impl Link {

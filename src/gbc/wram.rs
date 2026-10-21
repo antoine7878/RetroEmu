@@ -18,7 +18,7 @@ impl WRam {
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
             WRAM_START..FIRST_END => self.banks[0][(addr - WRAM_START) as usize],
-            FIRST_END..WRAM_END => self.banks[self.svbk.read().max(1) as usize][(addr - WRAM_START) as usize],
+            FIRST_END..WRAM_END => self.banks[self.svbk.read_raw().max(1) as usize][(addr - WRAM_START) as usize],
             SVBK => self.svbk.read(),
             _ => unreachable!(),
         }
@@ -27,7 +27,9 @@ impl WRam {
     pub fn write(&mut self, addr: u16, value: u8) {
         match addr {
             WRAM_START..FIRST_END => self.banks[0][(addr - WRAM_START) as usize] = value,
-            FIRST_END..WRAM_END => self.banks[self.svbk.read().max(1) as usize][(addr - WRAM_START) as usize] = value,
+            FIRST_END..WRAM_END => {
+                self.banks[self.svbk.read_raw().max(1) as usize][(addr - WRAM_START) as usize] = value
+            }
             SVBK => self.svbk.write(value),
             _ => unreachable!(),
         }

@@ -18,7 +18,7 @@ pub struct Bus {
     wram: WRam,
     hram: [u8; HRAM_SIZE],
     cycle_count: u64,
-    ie: IORegister<0x1F>,
+    ie: IORegister<0xFF>,
     ifl: IORegister<0x1F>,
     joypad: Joypad,
     timer: Timer,
@@ -60,7 +60,7 @@ impl Bus {
             WAVE_START..WAVE_END => 0xFF,
             BOOT_DISABLE => 0xFF,
 
-            IF => self.ifl.read() | 0xE0,
+            IF => self.ifl.read(),
             IE => self.ie.read(),
             JOYPAD => self.joypad.read(),
             SB | SC => self.link.read(addr),

@@ -1,38 +1,36 @@
 use std::ops::{AddAssign, BitOr};
 
+/// `WRITE`: bits the CPU can write. `READ`: bits the CPU can read back, the others read as 1.
 #[derive(Default)]
-pub struct IORegister<const USED_MASK: u8> {
+pub struct IORegister<const WRITE: u8, const READ: u8 = WRITE> {
     raw: u8,
 }
 
-impl<const USED_MASK: u8> IORegister<USED_MASK> {
+impl<const WRITE: u8, const READ: u8> IORegister<WRITE, READ> {
     pub fn set(&mut self, bit: u8) { self.raw |= 1 << bit }
     pub fn clear(&mut self, bit: u8) { self.raw &= !(1 << bit) }
     pub fn is_set(&self, bit: u8) -> bool { self.raw & (1 << bit) > 0 }
     pub fn is_clear(&self, bit: u8) -> bool { self.raw & (1 << bit) == 0 }
+    pub fn read_raw(&self) -> u8 { self.raw }
+    pub fn write_raw(&mut self, value: u8) { self.raw = value }
 }
 
-impl<const USED_MASK: u8> AddAssign<u8> for IORegister<USED_MASK> {
+impl<const WRITE: u8, const READ: u8> AddAssign<u8> for IORegister<WRITE, READ> {
     fn add_assign(&mut self, rhs: u8) { self.raw = self.raw.wrapping_add(rhs); }
 }
 
-impl<const USED_MASK: u8> BitOr<u8> for &IORegister<USED_MASK> {
+impl<const WRITE: u8, const READ: u8> BitOr<u8> for &IORegister<WRITE, READ> {
     type Output = u8;
     fn bitor(self, rhs: u8) -> Self::Output { self.read() | rhs }
 }
 
-// impl<const USED_MASK: u8> BitAnd<u8> for &IORegister<USED_MASK> {
-//     type Output = u8;
-//     fn bitand(self, rhs: u8) -> Self::Output { self.read() & rhs }
-// }
-
-impl<const USED_MASK: u8> PartialEq for IORegister<USED_MASK> {
-    fn eq(&self, other: &Self) -> bool { self.read() == other.read() }
+impl<const WRITE: u8, const READ: u8> PartialEq for IORegister<WRITE, READ> {
+    fn eq(&self, other: &Self) -> bool { self.raw == other.raw }
 }
 
-impl<const USED_MASK: u8> IOReg for IORegister<USED_MASK> {
-    fn read(&self) -> u8 { self.raw & USED_MASK }
-    fn write(&mut self, value: u8) { self.raw = value & USED_MASK }
+impl<const WRITE: u8, const READ: u8> IOReg for IORegister<WRITE, READ> {
+    fn read(&self) -> u8 { (self.raw & READ) | !READ }
+    fn write(&mut self, value: u8) { self.raw = (self.raw & !WRITE) | (value & WRITE) }
 }
 pub trait IOReg {
     fn read(&self) -> u8;
