@@ -77,6 +77,7 @@ impl Debugger {
             Some("b") => self.add_breakpoint(it.next()),
             Some("d") => self.delete_breakpoing(it.next()),
             Some("bl") => self.list_breakpoints(),
+            Some("q") => std::process::exit(0),
             Some("h") => self.help(),
             Some(other) => self.log(format!("unknown command: {other}")),
             None => (),
