@@ -8,7 +8,7 @@ use super::constants::{
     PPU_END, PPU_START, ROM_END, ROM_START, SB, SC, SVBK, TIMER_END, TIMER_START, U1, U2E, U2S, U3E, U3S, U5, U6E, U6S,
     U7E, U7S, U8E, U8S, VRAM_BS, VRAM_END, VRAM_START, WAVE_END, WAVE_START, WRAM_END, WRAM_START,
 };
-use super::io::{IOReg, IORegister};
+use super::io_reg::{IOReg, IORegister};
 use super::joypad::Joypad;
 use super::link::Link;
 use super::ppu::Ppu;
@@ -48,14 +48,18 @@ impl Bus {
         }
     }
 
-    pub fn init_reg(&mut self, mode: GCMode) {
-        self.ppu.init_reg(mode);
-        self.wram.init_reg(mode);
-        self.ie.write_raw(mode.initial_value(IE));
-        self.ifl.write_raw(mode.initial_value(IF));
-        self.joypad.init_reg(mode);
-        self.timer.init_reg(mode);
+    pub fn reset(&mut self, mode: &GCMode) {
+        self.ppu.reset(mode);
+        self.wram.reset(mode);
+        self.ie.reset(mode);
+        self.ifl.reset(mode);
+        self.joypad.reset(mode);
+        self.timer.reset(mode);
         self.link.init_reg(mode);
+        self.cart.reset();
+        self.hram = [0; HRAM_SIZE];
+        self.cycle_count = 0;
+        self.accesses.clear();
     }
 
     pub fn read_internal(&self, addr: u16) -> u8 {
@@ -125,9 +129,9 @@ impl Bus {
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
-        if addr == 0xFF01 || addr == 0xFF02 {
-            println!("WRITE {value} at {addr:04X}")
-        }
+        // if addr == 0xFF01 || addr == 0xFF02 {
+        //     println!("WRITE {value} at {addr:04X}")
+        // }
         self.tick();
         if self.trace {
             self.accesses.push(MemAccess::write(addr, value));

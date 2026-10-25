@@ -22,7 +22,11 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn init_reg(&mut self, mode: GCMode) { self.registers.init(mode); }
+    pub fn reset(&mut self, mode: &GCMode) {
+        self.registers.init(mode);
+        self.ime = false;
+        self.power_mode = PowerMode::default();
+    }
 
     pub fn step(&mut self, bus: &mut Bus) -> u8 {
         let opcode = self.take_pc8(bus);

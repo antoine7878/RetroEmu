@@ -1,4 +1,4 @@
-use super::io::IORegister;
+use super::io_reg::IORegister;
 
 #[derive(Default)]
 pub struct Audio {

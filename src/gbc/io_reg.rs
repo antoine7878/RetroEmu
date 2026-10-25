@@ -8,7 +8,7 @@ pub struct IORegister<const ADDR: u16, const WRITE: u8, const READ: u8 = WRITE> 
 }
 
 impl<const ADDR: u16, const WRITE: u8, const READ: u8> IORegister<ADDR, WRITE, READ> {
-    pub fn init(&mut self, mode: GCMode) { self.raw = mode.initial_value(ADDR); }
+    pub fn reset(&mut self, mode: &GCMode) { self.raw = mode.initial_value(ADDR); }
     pub fn set(&mut self, bit: u8) { self.raw |= 1 << bit }
     pub fn clear(&mut self, bit: u8) { self.raw &= !(1 << bit) }
     pub fn is_set(&self, bit: u8) -> bool { self.raw & (1 << bit) > 0 }

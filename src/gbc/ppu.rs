@@ -1,13 +1,9 @@
-use std::sync::atomic::Ordering;
-
-use crate::PC;
-
 use super::config::GCMode;
 use super::constants::{
     BGP, DMA, DMA_END, DMA_START, HEIGHT, LCDC, LCDC_OFF, LY, LYC, OAM_END, OAM_SIZE, OAM_START, OBP0, OBP1, PAL_END,
     PAL_START, PALETTE_ORIGNAL, SCX, SCY, STAT, VBK, VRAM_END, VRAM_SIZE, VRAM_START, WIDTH, WX, WY,
 };
-use super::io::{IOReg, IORegister};
+use super::io_reg::{IOReg, IORegister};
 #[derive(PartialEq, Clone, Eq)]
 pub enum PpuMode {
     HBlank = 0,
@@ -76,20 +72,31 @@ impl Default for Ppu {
 }
 
 impl Ppu {
-    pub fn init_reg(&mut self, mode: GCMode) {
-        self.lcdc.init(mode);
-        self.stat.init(mode);
-        self.scy.init(mode);
-        self.scx.init(mode);
-        self.ly.init(mode);
-        self.lyc.init(mode);
-        self.dma.init(mode);
-        self.bgp.init(mode);
-        self.opb0.init(mode);
-        self.opb1.init(mode);
-        self.wy.init(mode);
-        self.wx.init(mode);
-        self.vbk.init(mode);
+    pub fn reset(&mut self, mode: &GCMode) {
+        self.lcdc.reset(mode);
+        self.stat.reset(mode);
+        self.scy.reset(mode);
+        self.scx.reset(mode);
+        self.ly.reset(mode);
+        self.lyc.reset(mode);
+        self.dma.reset(mode);
+        self.bgp.reset(mode);
+        self.opb0.reset(mode);
+        self.opb1.reset(mode);
+        self.wy.reset(mode);
+        self.wx.reset(mode);
+        self.vbk.reset(mode);
+
+        self.pixels = [[[0; 3]; WIDTH]; HEIGHT];
+        self.dot = 0;
+        self.vram = [[0; VRAM_SIZE]; 2];
+        self.oam = [0; OAM_SIZE];
+        self.selected_objects = [[0; 4]; 10];
+        self.selected_objects_len = 0;
+        self.stat_line = false;
+        self.redraw = false;
+        self.window_line = 0;
+        self.mode = PpuMode::HBlank;
     }
 
     pub fn read(&self, addr: u16) -> u8 {
@@ -123,7 +130,7 @@ impl Ppu {
     pub fn read_vram(&self, addr: u16) -> u8 {
         match self.mode {
             PpuMode::Drawing => 0xFF,
-            _ => self.vram[self.vbk.read_raw() as usize][(addr - VRAM_START) as usize],
+            _ => self.vram[self.vbk.read_raw() as usize & 0x01][(addr - VRAM_START) as usize],
         }
     }
 
@@ -161,7 +168,7 @@ impl Ppu {
     pub fn write_vram(&mut self, addr: u16, value: u8) {
         match self.mode {
             PpuMode::Drawing => (),
-            _ => self.vram[self.vbk.read_raw() as usize][(addr - VRAM_START) as usize] = value,
+            _ => self.vram[self.vbk.read_raw() as usize & 0x01][(addr - VRAM_START) as usize] = value,
         }
     }
 

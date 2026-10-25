@@ -1,5 +1,5 @@
 use super::config::GCMode;
-use super::io::IOReg;
+use super::io_reg::IOReg;
 
 const UNUSED_BITS: u8 = 0b1100_0000;
 const SELECT_BUTTONS: u8 = 0b0010_0000;
@@ -69,7 +69,7 @@ impl Default for Joypad {
 }
 
 impl Joypad {
-    pub fn init_reg(&mut self, mode: GCMode) {
+    pub fn reset(&mut self, mode: &GCMode) {
         self.select = mode.initial_value(0xFF00);
         self.dpad = mode.initial_value(0xFF00);
         self.buttons = mode.initial_value(0xFF00);

@@ -49,6 +49,9 @@ impl Cartridge {
         Self { rom, mbcs, rom_banks, ram_banks, ram }
     }
 
+    pub fn reset(&mut self) { self.ram.clear(); }
+
+    pub fn extract_rom(&self) -> &Vec<u8> { &self.rom }
     pub fn read_rom(&self, addr: u16) -> u8 { self.rom[addr as usize] }
 
     pub fn read_ram(&self, addr: u16) -> u8 {

@@ -12,12 +12,13 @@ use sdl2::video::Window;
 use sdl2::{EventPump, Sdl};
 
 use crate::args::Args;
-use crate::debugger::{DebugAction, Debugger};
+use crate::debugger::{DebugAction, Debugger, StopReason};
 use crate::gbc::{FRAME_TIME, GameBoy, HEIGHT, PROMPT, SCALE, WIDTH};
 use crate::prompt::{self, Prompt};
 
 enum Mode {
     Running,
+    Tracing(u32),
     Paused,
 }
 
@@ -25,25 +26,32 @@ pub struct Frontend {
     event_pump: EventPump,
     canvas: Canvas<Window>,
     texture: Texture,
-    dbg: Option<Debugger>,
     mode: Mode,
     commands: Receiver<String>,
     prompt_ready: Sender<()>,
+    prompt_pending: bool,
     last_cmd: String,
+    dbg: Option<Debugger>,
     terminal: Option<String>,
 }
 
 impl Frontend {
     pub fn new(args: Args, sdl: Sdl) -> Result<Self, Box<dyn Error>> {
         let event_pump = sdl.event_pump()?;
-
         let (canvas, texture) = Self::new_texture(&sdl)?;
         let mode = Mode::Running;
         let dbg = Debugger::new(&args);
         let (commands, prompt_ready) = Self::new_debug_thread();
         let last_cmd = String::new();
         let terminal = std::env::var("__CFBundleIdentifier").ok();
-        Ok(Self { event_pump, canvas, texture, dbg, mode, commands, prompt_ready, last_cmd, terminal })
+        let prompt_pending = false;
+        Ok(Self { event_pump, canvas, texture, dbg, mode, commands, prompt_ready, prompt_pending, last_cmd, terminal })
+    }
+
+    pub fn reset(&mut self) {
+        self.mode = Mode::Running;
+        self.last_cmd = String::new();
+        self.terminal = std::env::var("__CFBundleIdentifier").ok();
     }
 
     fn new_texture(sdl: &Sdl) -> Result<(Canvas<Window>, Texture), Box<dyn Error>> {
@@ -91,20 +99,37 @@ impl Frontend {
             }
 
             while let Ok(mut cmd) = self.commands.try_recv() {
+                self.prompt_pending = false;
                 if cmd.is_empty() {
+                    if let Mode::Tracing(_) = self.mode {
+                        self.pause(game_boy);
+                        continue;
+                    }
                     cmd = self.last_cmd.clone();
                 }
                 self.handle_command(&cmd, game_boy);
             }
 
-            if let Mode::Running = self.mode
-                && let Some(reason) = game_boy.run_frame(self.dbg.as_mut())
-            {
-                if let Some(dbg) = self.dbg.as_mut() {
-                    dbg.log(reason.to_string());
+            match self.mode {
+                Mode::Running => {
+                    if let Some(reason) = game_boy.run_frame(self.dbg.as_mut()) {
+                        self.stop(reason, game_boy);
+                    }
                 }
-                self.focus_terminal();
-                self.pause(game_boy);
+                Mode::Tracing(n) => {
+                    if let Some(dbg) = self.dbg.as_mut() {
+                        dbg.set_step_budget(n);
+                    }
+                    match game_boy.run_frame(self.dbg.as_mut()) {
+                        None | Some(StopReason::Step) => {
+                            if let Some(dbg) = &self.dbg {
+                                dbg.draw_live(game_boy);
+                            }
+                        }
+                        Some(reason) => self.stop(reason, game_boy),
+                    }
+                }
+                Mode::Paused => {}
             }
 
             self.draw(game_boy)?;
@@ -138,21 +163,44 @@ impl Frontend {
                 self.canvas.window_mut().raise();
             }
             DebugAction::Step => self.mode = Mode::Running,
+            DebugAction::Trace(n) => {
+                self.mode = Mode::Tracing(n);
+                self.show_prompt(game_boy);
+            }
             DebugAction::Stay => self.pause(game_boy),
+            DebugAction::Reset => {
+                game_boy.reset();
+                self.reset();
+            }
         }
     }
-
     fn focus_terminal(&self) {
         if let Some(id) = &self.terminal {
             let _ = Command::new("open").args(["-b", id]).status();
         }
     }
 
+    fn stop(&mut self, reason: StopReason, game_boy: &GameBoy) {
+        if let Some(dbg) = self.dbg.as_mut() {
+            dbg.log(reason.to_string());
+        }
+        self.focus_terminal();
+        self.pause(game_boy);
+    }
+
     fn pause(&mut self, game_boy: &GameBoy) {
         self.mode = Mode::Paused;
-        if let Some(dbg) = &self.dbg {
+        self.show_prompt(game_boy);
+    }
+
+    fn show_prompt(&mut self, game_boy: &GameBoy) {
+        let Some(dbg) = &self.dbg else { return };
+        if self.prompt_pending {
+            dbg.draw_live(game_boy);
+        } else {
             dbg.draw(game_boy);
             let _ = self.prompt_ready.send(());
+            self.prompt_pending = true;
         }
     }
 }

@@ -12,15 +12,11 @@ pub struct GameBoy {
 }
 
 impl GameBoy {
-    pub fn new(rom: Vec<u8>, config: Config) -> Self {
-        let mut gb = Self { cpu: Cpu::default(), bus: Bus::new(rom), config };
-        gb.init();
-        gb
-    }
+    pub fn new(rom: Vec<u8>, config: Config) -> Self { Self { cpu: Cpu::default(), bus: Bus::new(rom), config } }
 
-    pub fn init(&mut self) {
-        self.bus.init_reg(self.config.mode);
-        self.cpu.init_reg(self.config.mode);
+    pub fn reset(&mut self) {
+        self.bus.reset(&self.config.mode);
+        self.cpu.reset(&self.config.mode);
     }
 
     pub fn run_frame(&mut self, mut dbg: Option<&mut Debugger>) -> Option<StopReason> {

@@ -1,6 +1,6 @@
 use super::config::GCMode;
 use super::constants::{DIV, IF, TAC, TIMA, TMA};
-use super::io::{IOReg, IORegister};
+use super::io_reg::{IOReg, IORegister};
 
 #[derive(Default)]
 pub struct Timer {
@@ -13,11 +13,11 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub fn init_reg(&mut self, mode: GCMode) {
-        self.div.init(mode);
-        self.tima.init(mode);
-        self.tma.init(mode);
-        self.tac.init(mode);
+    pub fn reset(&mut self, mode: &GCMode) {
+        self.div.reset(mode);
+        self.tima.reset(mode);
+        self.tma.reset(mode);
+        self.tac.reset(mode);
         self.div_clock = 0;
         self.reset_tima_clock();
     }

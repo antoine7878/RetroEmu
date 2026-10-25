@@ -1,6 +1,6 @@
 use super::config::GCMode;
 use super::constants::{SB, SC};
-use super::io::{IOReg, IORegister};
+use super::io_reg::{IOReg, IORegister};
 
 #[derive(Default)]
 pub struct Link {
@@ -9,9 +9,9 @@ pub struct Link {
 }
 
 impl Link {
-    pub fn init_reg(&mut self, mode: GCMode) {
-        self.buffer.init(mode);
-        self.ctrl.init(mode);
+    pub fn init_reg(&mut self, mode: &GCMode) {
+        self.buffer.reset(mode);
+        self.ctrl.reset(mode);
     }
 
     pub fn read(&self, addr: u16) -> u8 {

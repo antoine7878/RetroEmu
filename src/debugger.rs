@@ -2,16 +2,18 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::fs::read_to_string;
+use std::io::Write;
 
 use crate::args::Args;
-use crate::color::{GREY, RESET, WHITE};
 use crate::gbc::GameBoy;
 
+const GREY: &str = "\x1b[2m";
+const WHITE: &str = "\x1b[7m";
+const RESET: &str = "\x1b[0m";
 const PANEL_HEIGHT: usize = 12;
 const HISTORY_LEN: usize = 3;
 const ASM_WIDTH: usize = 32;
 const REG_WIDTH: usize = 20;
-const CONSOLE_WIDTH: usize = ASM_WIDTH + REG_WIDTH + 2;
 const CONSOLE_HEIGHT: usize = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -70,6 +72,7 @@ pub struct Debugger {
     skip_break: bool,
     console: Vec<String>,
     history: VecDeque<u16>,
+    initial_cmds: Vec<String>,
 }
 
 pub enum StopReason {
@@ -93,7 +96,9 @@ impl fmt::Display for StopReason {
 pub enum DebugAction {
     Continue,
     Step,
+    Trace(u32),
     Stay,
+    Reset,
 }
 
 impl Debugger {
@@ -102,14 +107,26 @@ impl Debugger {
             return None;
         }
 
-        let mut dbg = Self::default();
-        if let Some(file) = args.debug_init_file.as_ref() {
-            for line in read_to_string(file).unwrap().lines() {
-                // println!("gbdb: <{line}>");
-                dbg.handle_command(line);
-            }
-        }
+        let initial_cmds = args
+            .debug_init_file
+            .as_ref()
+            .map(|file| read_to_string(file).unwrap().lines().map(|s| s.to_string()).collect())
+            .unwrap_or_default();
+        let mut dbg = Self { initial_cmds, ..Default::default() };
+        dbg.reset();
         Some(dbg)
+    }
+
+    pub fn reset(&mut self) -> DebugAction {
+        self.step_budget = None;
+        self.skip_break = false;
+        self.console.clear();
+        self.console.push("Reset".to_string());
+        self.history.clear();
+        for cmd in &self.initial_cmds.clone() {
+            self.handle_command(cmd.as_str());
+        }
+        DebugAction::Reset
     }
 
     pub fn check(&mut self, pc: u16) -> Option<StopReason> {
@@ -149,8 +166,10 @@ impl Debugger {
         self.log(format!("(gbdb) {cmd}"));
         let it = &mut cmd.split_whitespace();
         match it.next() {
+            Some("r") => return self.reset(),
             Some("c") => return self.continu(),
             Some("s") => return self.step(it),
+            Some("t") => return self.trace(it),
             Some("ab") => self.add_breakpoint(it),
             Some("db") => self.delete_breakpoing(it),
             Some("aw") => self.add_watchpoint(it),
@@ -176,6 +195,14 @@ impl Debugger {
         self.resume();
         DebugAction::Step
     }
+
+    fn trace<'a, It: Iterator<Item = &'a str>>(&mut self, it: &mut It) -> DebugAction {
+        let n = parse_int(it);
+        self.resume();
+        DebugAction::Trace(n)
+    }
+
+    pub fn set_step_budget(&mut self, n: u32) { self.step_budget = Some(n); }
 
     fn add_breakpoint<'a, It: Iterator<Item = &'a str>>(&mut self, it: &mut It) {
         let max_id = *self.breakpoints.values().max().unwrap_or(&0);
@@ -235,8 +262,10 @@ impl Debugger {
 
     fn help(&mut self) {
         self.log("Commands:".into());
+        self.log("  r                    reset".into());
         self.log("  c                    continue".into());
         self.log("  s [n]                step n instructions (default 1)".into());
+        self.log("  t [n]                trace n inst/frame (default 1)".into());
         self.log("  ab $<addr>           add breakpoint at hex addr".into());
         self.log("  db <id>              delete breakpoint by id".into());
         self.log("  aw r|w $<a>[..$<b>]  add read/write watchpoint".into());
@@ -245,7 +274,7 @@ impl Debugger {
         self.log("  cls                  clear the console".into());
         self.log("  h                    show this help".into());
         self.log("  q                    quit".into());
-        self.log("  <enter>              repeat last command".into());
+        self.log("  <enter>              repeat last cmd / stop trace".into());
     }
 
     pub fn log(&mut self, line: String) { self.console.push(line); }
@@ -255,6 +284,14 @@ impl Debugger {
         out += &self.disassembly_registers_panel(game_boy);
         out += &self.console_lines();
         println!("{out}");
+    }
+
+    /// Redraw the panels in place, leaving the cursor (and the prompt line) untouched.
+    pub fn draw_live(&self, game_boy: &GameBoy) {
+        let body = self.disassembly_registers_panel(game_boy) + &self.console_lines();
+        let mut stdout = std::io::stdout().lock();
+        let _ = write!(stdout, "\x1b7\x1b[H{}\x1b[K\x1b8", body.replace('\n', "\x1b[K\n"));
+        let _ = stdout.flush();
     }
 
     fn disassembly_registers_panel(&self, game_boy: &GameBoy) -> String {
@@ -296,7 +333,6 @@ impl Debugger {
         let start = self.console.len().saturating_sub(height);
         (0..height)
             .map(|i| i.checked_sub(blank).and_then(|j| self.console.get(start + j)).map_or("", String::as_str))
-            .map(|line| format!("{line:.CONSOLE_WIDTH$}"))
             .collect::<Vec<_>>()
             .join("\n")
     }
