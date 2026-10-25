@@ -5,11 +5,15 @@ use std::fs::read_to_string;
 use std::io::Write;
 
 use crate::args::Args;
-use crate::gbc::GameBoy;
+use crate::gbc::{GameBoy, PROMPT};
 
 const GREY: &str = "\x1b[2m";
 const WHITE: &str = "\x1b[7m";
 const RESET: &str = "\x1b[0m";
+const BOLD: &str = "\x1b[1m";
+const RED: &str = "\x1b[31m";
+const YELLOW: &str = "\x1b[33m";
+const CYAN: &str = "\x1b[36m";
 const PANEL_HEIGHT: usize = 12;
 const HISTORY_LEN: usize = 3;
 const ASM_WIDTH: usize = 32;
@@ -66,9 +70,9 @@ pub struct Watchpoint {
 
 impl fmt::Display for Watchpoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "${:04X}", self.start)?;
+        write!(f, "{CYAN}${:04X}{RESET}", self.start)?;
         if self.start != self.end {
-            write!(f, "..${:04X}", self.end)?;
+            write!(f, "..{CYAN}${:04X}{RESET}", self.end)?;
         }
         write!(f, " on: {}", self.on)?;
         Ok(())
@@ -96,10 +100,10 @@ pub enum StopReason {
 impl fmt::Display for StopReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            StopReason::Step => write!(f, "Step"),
-            StopReason::Breakpoint(addr) => write!(f, "Breakpoint at ${addr:04X}"),
+            StopReason::Step => write!(f, "{YELLOW}Step{RESET}"),
+            StopReason::Breakpoint(addr) => write!(f, "{YELLOW}Breakpoint{RESET} at {CYAN}${addr:04X}{RESET}"),
             StopReason::Watchpoint(MemAccess { addr, value, on }) => {
-                write!(f, "Watchpoint: {on} value {value} at ${addr:04X}")
+                write!(f, "{YELLOW}Watchpoint{RESET}: {on} value {value} at {CYAN}${addr:04X}{RESET}")
             }
         }
     }
@@ -133,7 +137,7 @@ impl Debugger {
         self.step_budget = None;
         self.skip_break = false;
         self.console.clear();
-        self.console.push("Reset".to_string());
+        self.console.push(format!("{RED}Reset{RESET}"));
         self.history.clear();
         for cmd in &self.initial_cmds.clone() {
             self.handle_command(cmd.as_str());
@@ -175,7 +179,7 @@ impl Debugger {
     pub fn resume(&mut self) { self.skip_break = true; }
 
     pub fn handle_command(&mut self, cmd: &str) -> DebugAction {
-        self.log(format!("(gbdb) {cmd}"));
+        self.log(format!("{PROMPT}{cmd}"));
         let it = &mut cmd.split_whitespace();
         match it.next() {
             Some("r") => return self.reset(),
@@ -190,7 +194,7 @@ impl Debugger {
             Some("q") => std::process::exit(0),
             Some("h") => self.help(),
             Some("cls") => self.console.clear(),
-            Some(other) => self.log(format!("unknown command: {other}")),
+            Some(other) => self.log(format!("{RED}unknown command: {other}{RESET}")),
             None => (),
         }
         DebugAction::Stay
@@ -220,7 +224,7 @@ impl Debugger {
         let max_id = *self.breakpoints.values().max().unwrap_or(&0);
         let Some(addr) = parse_addr(it) else { return };
         if self.breakpoints.insert(addr, max_id).is_none() {
-            self.log(format!("Breakpoint {max_id} added: ${addr:04X}"));
+            self.log(format!("{YELLOW}Breakpoint{RESET} {max_id} added: {CYAN}${addr:04X}{RESET}"));
         }
     }
 
@@ -228,7 +232,7 @@ impl Debugger {
         let point_id = parse_int(it) as usize;
         let Some((&point, _)) = self.breakpoints.iter().find(|&(_, id)| id == &point_id) else { return };
         if let Some(id) = self.breakpoints.remove(&point) {
-            self.log(format!("Breakpoint {id} removed at ${point:04X}"));
+            self.log(format!("{YELLOW}Breakpoint{RESET} {id} removed at {CYAN}${point:04X}{RESET}"));
         }
     }
 
@@ -237,15 +241,15 @@ impl Debugger {
         let on = match it.next() {
             Some("r" | "read") => WatchOn::Read,
             Some("w" | "write") => WatchOn::Write,
-            _ => return self.log("Watchpoint not added".to_string()),
+            _ => return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}")),
         };
-        let Some(range) = it.next() else { return self.log("Watchpoint not added".to_string()) };
+        let Some(range) = it.next() else { return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}")) };
         let it = &mut range.split("..");
-        let Some(start) = parse_addr(it) else { return self.log("Watchpoint not added".to_string()) };
+        let Some(start) = parse_addr(it) else { return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}")) };
         let end = parse_addr(it).unwrap_or(start);
         let point = Watchpoint { start, end, on, value: None };
         if self.watchpoints.insert(point, max_id).is_none() {
-            self.log(format!("Watchpoint {max_id} added: {point}"));
+            self.log(format!("{YELLOW}Watchpoint{RESET} {max_id} added: {point}"));
         }
     }
 
@@ -253,40 +257,40 @@ impl Debugger {
         let point_id = parse_int(it) as usize;
         let Some((&point, _)) = self.watchpoints.iter().find(|&(_, id)| id == &point_id) else { return };
         if let Some(id) = self.watchpoints.remove(&point) {
-            self.log(format!("Watchpoint {id} removed: {point}"));
+            self.log(format!("{YELLOW}Watchpoint{RESET} {id} removed: {point}"));
         }
     }
 
     fn list_points(&mut self) {
         let mut breakpoints: Vec<_> = self.breakpoints.iter().map(|(&point, &id)| (id, point)).collect();
         breakpoints.sort_by_key(|&(id, _)| id);
-        self.log("Breakpoints:".into());
+        self.log(format!("{BOLD}{YELLOW}Breakpoints{RESET}{BOLD}:{RESET}"));
         for (id, point) in breakpoints {
-            self.log(format!("  {id}: ${point:04X}"));
+            self.log(format!("  {id}: {CYAN}${point:04X}{RESET}"));
         }
         let mut watchpoints: Vec<_> = self.watchpoints.iter().map(|(&point, &id)| (id, point)).collect();
         watchpoints.sort_by_key(|&(id, _)| id);
-        self.log("Watchpoints:".into());
+        self.log(format!("{BOLD}{YELLOW}Watchpoints{RESET}{BOLD}:{RESET}"));
         for (id, point) in watchpoints {
             self.log(format!("  {id}: {point}"));
         }
     }
 
     fn help(&mut self) {
-        self.log("Commands:".into());
-        self.log("  r                    reset".into());
-        self.log("  c                    continue".into());
-        self.log("  s [n]                step n instructions (default 1)".into());
-        self.log("  t [n]                trace n inst/frame (default 1)".into());
-        self.log("  ab $<addr>           add breakpoint at hex addr".into());
-        self.log("  db <id>              delete breakpoint by id".into());
-        self.log("  aw r|w $<a>[..$<b>]  add read/write watchpoint".into());
-        self.log("  dw <id>              delete watchpoint by id".into());
-        self.log("  l                    list breakpoints & watchpoints".into());
-        self.log("  cls                  clear the console".into());
-        self.log("  h                    show this help".into());
-        self.log("  q                    quit".into());
-        self.log("  <enter>              repeat last cmd / stop trace".into());
+        self.log(format!("{BOLD}Commands:{RESET}"));
+        self.log(format!("  {CYAN}r                    {RESET}reset"));
+        self.log(format!("  {CYAN}c                    {RESET}continue"));
+        self.log(format!("  {CYAN}s [n]                {RESET}step n instructions (default 1)"));
+        self.log(format!("  {CYAN}t [n]                {RESET}trace n inst/frame (default 1)"));
+        self.log(format!("  {CYAN}ab $<addr>           {RESET}add breakpoint at hex addr"));
+        self.log(format!("  {CYAN}db <id>              {RESET}delete breakpoint by id"));
+        self.log(format!("  {CYAN}aw r|w $<a>[..$<b>]  {RESET}add read/write watchpoint"));
+        self.log(format!("  {CYAN}dw <id>              {RESET}delete watchpoint by id"));
+        self.log(format!("  {CYAN}l                    {RESET}list breakpoints & watchpoints"));
+        self.log(format!("  {CYAN}cls                  {RESET}clear the console"));
+        self.log(format!("  {CYAN}h                    {RESET}show this help"));
+        self.log(format!("  {CYAN}q                    {RESET}quit"));
+        self.log(format!("  {CYAN}<enter>              {RESET}repeat last cmd / stop trace"));
     }
 
     pub fn log(&mut self, line: String) { self.console.push(line); }
@@ -311,10 +315,12 @@ impl Debugger {
     fn disassembly_registers_panel(&self, game_boy: &GameBoy) -> String {
         let asm = self.make_asm(game_boy);
         let regs = game_boy.dump_registers();
-        let mut out = format!("┌{:─<ASM_WIDTH$}┐┌{:─<REG_WIDTH$}┐\n", "─ Disassembly ", "─ Registers ");
+        let mut out = format!("┌─{BOLD} Disassembly {RESET}{:─<w1$}┐┌─{BOLD} Registers {RESET}{:─<w2$}┐\n", "", "", w1 = ASM_WIDTH - 14, w2 = REG_WIDTH - 12);
         for i in 0..PANEL_HEIGHT {
             let left = asm.get(i).cloned().unwrap_or_else(|| pad("", ASM_WIDTH));
             let right = pad(regs.get(i).map_or("", String::as_str), REG_WIDTH);
+            let (name, value) = right.split_at(2);
+            let right = format!("{CYAN}{name}{RESET}{value}");
             out += &format!("│{left}││{right}│\n");
         }
         out += &format!("└{:─<ASM_WIDTH$}┘└{:─<REG_WIDTH$}┘\n", "", "");
@@ -331,12 +337,13 @@ impl Debugger {
             .enumerate()
             .map(|(i, (addr, text))| {
                 let bp = if self.breakpoints.contains_key(&addr) { '●' } else { ' ' };
-                let line = pad(&format!("{bp} ${addr:04X}  {text}"), ASM_WIDTH);
-                match i.cmp(&current) {
-                    Ordering::Less => format!("{GREY}{line}{RESET}"),
-                    Ordering::Equal => format!("{WHITE}{line}{RESET}"),
-                    Ordering::Greater => line,
-                }
+                let line = pad(&format!(" ${addr:04X}  {text}"), ASM_WIDTH - 1);
+                let style = match i.cmp(&current) {
+                    Ordering::Less => GREY,
+                    Ordering::Equal => WHITE,
+                    Ordering::Greater => "",
+                };
+                format!("{style}{RED}{bp}{RESET}{style}{line}{RESET}")
             })
             .collect()
     }
