@@ -339,7 +339,6 @@ impl Ppu {
             self.ly.write_raw(0);
             return;
         }
-        println!("pased 0x{:04X}", PC.load(Ordering::Relaxed));
         for _ in 0..dots {
             self.tick(ifl);
         }

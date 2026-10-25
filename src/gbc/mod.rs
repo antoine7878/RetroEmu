@@ -9,7 +9,7 @@ mod cpu;
 mod flag;
 mod instruction;
 mod interrupt;
-mod io;
+mod io_reg;
 mod joypad;
 mod keypad;
 mod link;
