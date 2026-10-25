@@ -13,7 +13,7 @@ use sdl2::{EventPump, Sdl};
 
 use crate::args::Args;
 use crate::debugger::{DebugAction, Debugger};
-use crate::gbc::{FRAME_TIME, GameBoy, HEIGHT, SCALE, WIDTH};
+use crate::gbc::{FRAME_TIME, GameBoy, HEIGHT, PROMPT, SCALE, WIDTH};
 use crate::prompt::{self, Prompt};
 
 enum Mode {
@@ -67,7 +67,7 @@ impl Frontend {
         std::thread::spawn(move || {
             let mut prompt = Prompt::default();
             while ready.recv().is_ok() {
-                let Some(line) = prompt.read_line("(gbdb) ") else { std::process::exit(0) };
+                let Some(line) = prompt.read_line(PROMPT) else { std::process::exit(0) };
                 if tx.send(line).is_err() {
                     break;
                 }

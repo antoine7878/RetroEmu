@@ -1,5 +1,8 @@
 use std::time::Duration;
 
+//
+pub const PROMPT: &str = "(gbdb) ";
+
 // ----- Memory Size --------------------
 
 pub const WRAM_SIZE: usize = (WRAM_END - WRAM_START) as usize;
