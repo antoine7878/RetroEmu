@@ -197,13 +197,17 @@ impl Debugger {
 
     fn help(&mut self) {
         self.log("Commands:".into());
-        self.log("  c            continue".into());
-        self.log("  s [n]        step n instructions (default 1)".into());
-        self.log("  b $<addr>    set breakpoint at hex addr".into());
-        self.log("  d $<addr>    delete breakpoint at hex addr".into());
-        self.log("  bl           list breakpoints".into());
-        self.log("  h            show this help".into());
-        self.log("  <enter>      repeat last command".into());
+        self.log("  c                    continue".into());
+        self.log("  s [n]                step n instructions (default 1)".into());
+        self.log("  ab $<addr>           add breakpoint at hex addr".into());
+        self.log("  db <id>              delete breakpoint by id".into());
+        self.log("  aw r|w $<a>[..$<b>]  add read/write watchpoint".into());
+        self.log("  dw <id>              delete watchpoint by id".into());
+        self.log("  l                    list breakpoints & watchpoints".into());
+        self.log("  cls                  clear the console".into());
+        self.log("  h                    show this help".into());
+        self.log("  q                    quit".into());
+        self.log("  <enter>              repeat last command".into());
     }
 
     pub fn log(&mut self, line: String) { self.console.push(line); }
