@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::process::Command;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 use std::thread::sleep;
 use std::time::Instant;
 
@@ -14,6 +14,7 @@ use sdl2::{EventPump, Sdl};
 use crate::args::Args;
 use crate::debugger::{DebugAction, Debugger};
 use crate::gbc::{FRAME_TIME, GameBoy, HEIGHT, SCALE, WIDTH};
+use crate::prompt::{self, Prompt};
 
 enum Mode {
     Running,
@@ -27,6 +28,7 @@ pub struct Frontend {
     dbg: Option<Debugger>,
     mode: Mode,
     commands: Receiver<String>,
+    prompt_ready: Sender<()>,
     last_cmd: String,
     terminal: Option<String>,
 }
@@ -38,10 +40,10 @@ impl Frontend {
         let (canvas, texture) = Self::init_texture(&sdl)?;
         let mode = Mode::Running;
         let dbg = Debugger::new(&args);
-        let commands = Self::init_debug_thread();
+        let (commands, prompt_ready) = Self::init_debug_thread();
         let last_cmd = String::new();
         let terminal = std::env::var("__CFBundleIdentifier").ok();
-        Ok(Self { event_pump, canvas, texture, dbg, mode, commands, last_cmd, terminal })
+        Ok(Self { event_pump, canvas, texture, dbg, mode, commands, prompt_ready, last_cmd, terminal })
     }
 
     fn init_texture(sdl: &Sdl) -> Result<(Canvas<Window>, Texture), Box<dyn Error>> {
@@ -59,16 +61,19 @@ impl Frontend {
         Ok((canvas, texture))
     }
 
-    fn init_debug_thread() -> Receiver<String> {
+    fn init_debug_thread() -> (Receiver<String>, Sender<()>) {
         let (tx, commands) = std::sync::mpsc::channel();
+        let (prompt_ready, ready) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            for line in std::io::stdin().lines().map_while(Result::ok) {
+            let mut prompt = Prompt::default();
+            while ready.recv().is_ok() {
+                let Some(line) = prompt.read_line("(gbdb) ") else { std::process::exit(0) };
                 if tx.send(line).is_err() {
                     break;
                 }
             }
         });
-        commands
+        (commands, prompt_ready)
     }
 
     pub fn run(&mut self, game_boy: &mut GameBoy) -> Result<(), Box<dyn Error>> {
@@ -108,6 +113,7 @@ impl Frontend {
                 None => {}
             }
         }
+        prompt::restore_terminal();
         Ok(())
     }
 
@@ -143,6 +149,7 @@ impl Frontend {
         self.mode = Mode::Paused;
         if let Some(dbg) = &self.dbg {
             dbg.draw(game_boy);
+            let _ = self.prompt_ready.send(());
         }
     }
 }

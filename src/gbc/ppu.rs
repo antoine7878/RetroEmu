@@ -1,3 +1,7 @@
+use std::sync::atomic::Ordering;
+
+use crate::PC;
+
 use super::constants::{
     BGP, DMA, DMA_END, DMA_START, HEIGHT, LCDC, LCDC_OFF, LY, LYC, OAM_END, OAM_SIZE, OAM_START, OBP0, OBP1, PAL_END,
     PAL_START, PALETTE_ORIGNAL, SCX, SCY, STAT, VBK, VRAM_END, VRAM_SIZE, VRAM_START, WIDTH, WX, WY,
@@ -318,6 +322,7 @@ impl Ppu {
             self.ly.write_raw(0);
             return;
         }
+        println!("pased 0x{:04X}", PC.load(Ordering::Relaxed));
         for _ in 0..dots {
             self.tick(ifl);
         }

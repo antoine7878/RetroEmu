@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::path::Path;
 use std::process::exit;
 use std::str::Chars;
@@ -10,7 +9,7 @@ use crate::argparser::{ArgError, ArgParser, argv};
 pub struct Args {
     pub infiles: Vec<String>,
     pub debug: bool,
-    pub breakpoints: BTreeSet<u16>,
+    pub breakpoints: Vec<u16>,
     argv: vec::IntoIter<String>,
 }
 
@@ -29,7 +28,7 @@ impl ArgParser for Args {
                 let s: String = self.value(it, 'b')?;
                 let addr =
                     u16::from_str_radix(&s, 16).or(Err(ArgError::WrongValue('b', "invalid addres".to_string())))?;
-                self.breakpoints.insert(addr);
+                self.breakpoints.push(addr);
             }
             'h' => Self::help(),
             c => return Err(ArgError::UnknownOption(c)),
@@ -39,7 +38,7 @@ impl ArgParser for Args {
 }
 
 impl Default for Args {
-    fn default() -> Self { Self { infiles: Vec::default(), debug: false, breakpoints: BTreeSet::new(), argv: argv() } }
+    fn default() -> Self { Self { infiles: Vec::default(), debug: false, breakpoints: Vec::new(), argv: argv() } }
 }
 
 impl Args {

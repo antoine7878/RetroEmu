@@ -1,6 +1,5 @@
 use std::ops::{AddAssign, BitOr};
 
-/// `WRITE`: bits the CPU can write. `READ`: bits the CPU can read back, the others read as 1.
 #[derive(Default)]
 pub struct IORegister<const WRITE: u8, const READ: u8 = WRITE> {
     raw: u8,
@@ -32,6 +31,7 @@ impl<const WRITE: u8, const READ: u8> IOReg for IORegister<WRITE, READ> {
     fn read(&self) -> u8 { (self.raw & READ) | !READ }
     fn write(&mut self, value: u8) { self.raw = (self.raw & !WRITE) | (value & WRITE) }
 }
+
 pub trait IOReg {
     fn read(&self) -> u8;
     fn write(&mut self, value: u8);

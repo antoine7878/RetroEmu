@@ -4,6 +4,7 @@ mod color;
 mod debugger;
 mod frontend;
 mod gbc;
+mod prompt;
 
 use std::fs;
 use std::sync::atomic::{AtomicU16, Ordering};
