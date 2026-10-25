@@ -143,7 +143,7 @@ impl Debugger {
     fn add_breakpoint<'a, It: Iterator<Item = &'a str>>(&mut self, it: &mut It) {
         let max_id = *self.breakpoints.values().max().unwrap_or(&0);
         let Some(addr) = parse_addr(it) else { return };
-        if self.breakpoints.insert(addr, max_id).is_some() {
+        if self.breakpoints.insert(addr, max_id).is_none() {
             self.log(format!("Breakpoint {max_id} added: ${addr:04X}"));
         }
     }
@@ -168,8 +168,9 @@ impl Debugger {
         let Some(start) = parse_addr(it) else { return self.log("Watchpoint not added".to_string()) };
         let end = parse_addr(it).unwrap_or(start);
         let point = Watchpoint { start, end, on, value: None };
-        self.watchpoints.insert(point, max_id);
-        self.log(format!("Watchpoint {max_id} added: {point}"));
+        if self.watchpoints.insert(point, max_id).is_none() {
+            self.log(format!("Watchpoint {max_id} added: {point}"));
+        }
     }
 
     fn delete_watchpoint<'a, It: Iterator<Item = &'a str>>(&mut self, it: &mut It) {
@@ -215,8 +216,21 @@ impl Debugger {
     pub fn draw(&self, game_boy: &GameBoy) {
         let mut out = String::from("\x1b[H\x1b[J");
         out += &self.disassembly_registers_panel(game_boy);
-        out += &self.console_panel();
+        out += &self.console_lines();
         println!("{out}");
+    }
+
+    fn disassembly_registers_panel(&self, game_boy: &GameBoy) -> String {
+        let asm = self.make_asm(game_boy);
+        let regs = game_boy.registers();
+        let mut out = format!("┌{:─<ASM_WIDTH$}┐┌{:─<REG_WIDTH$}┐\n", "─ Disassembly ", "─ Registers ");
+        for i in 0..PANEL_HEIGHT {
+            let left = asm.get(i).cloned().unwrap_or_else(|| pad("", ASM_WIDTH));
+            let right = pad(regs.get(i).map_or("", String::as_str), REG_WIDTH);
+            out += &format!("│{left}││{right}│\n");
+        }
+        out += &format!("└{:─<ASM_WIDTH$}┘└{:─<REG_WIDTH$}┘\n", "", "");
+        out
     }
 
     fn make_asm(&self, game_boy: &GameBoy) -> Vec<String> {
@@ -239,36 +253,22 @@ impl Debugger {
             .collect()
     }
 
-    fn disassembly_registers_panel(&self, game_boy: &GameBoy) -> String {
-        let asm = self.make_asm(game_boy);
-        let regs = game_boy.registers();
-        let mut out = format!("┌{:─<ASM_WIDTH$}┐┌{:─<REG_WIDTH$}┐\n", "─ Disassembly ", "─ Registers ");
-        for i in 0..PANEL_HEIGHT {
-            let left = asm.get(i).cloned().unwrap_or_else(|| pad("", ASM_WIDTH));
-            let right = pad(regs.get(i).map_or("", String::as_str), REG_WIDTH);
-            out += &format!("│{left}││{right}│\n");
-        }
-        out += &format!("└{:─<ASM_WIDTH$}┘└{:─<REG_WIDTH$}┘\n", "", "");
-        out
-    }
-
-    fn console_panel(&self) -> String {
-        let mut out = format!("┌{:─<CONSOLE_WIDTH$}┐\n", "─ Console ");
+    fn console_lines(&self) -> String {
         let height = console_height();
+        let blank = height.saturating_sub(self.console.len());
         let start = self.console.len().saturating_sub(height);
-        for i in 0..height {
-            let line = self.console.get(start + i).map_or("", String::as_str);
-            out += &format!("│{}│\n", pad(line, CONSOLE_WIDTH));
-        }
-        out += &format!("└{:─<CONSOLE_WIDTH$}┘", "");
-        out
+        (0..height)
+            .map(|i| i.checked_sub(blank).and_then(|j| self.console.get(start + j)).map_or("", String::as_str))
+            .map(|line| format!("{line:.CONSOLE_WIDTH$}"))
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
 
 fn pad(s: &str, width: usize) -> String { format!("{s:<width$.width$}") }
 
 fn console_height() -> usize {
-    terminal_rows().map_or(CONSOLE_HEIGHT, |rows| rows.saturating_sub(PANEL_HEIGHT + 2 + 2 + 2).max(1))
+    terminal_rows().map_or(CONSOLE_HEIGHT, |rows| rows.saturating_sub(PANEL_HEIGHT + 2 + 2).max(1))
 }
 
 fn terminal_rows() -> Option<usize> {

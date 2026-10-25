@@ -16,9 +16,11 @@ pub struct Prompt {
 
 impl Prompt {
     pub fn read_line(&mut self, prompt: &str) -> Option<String> {
-        stty(&["-icanon", "-echo", "-isig", "min", "1"]);
+        stty(&["-icanon", "-echo", "-isig", "min", "0", "time", "0"]);
+        while std::io::stdin().read(&mut [0; 64]).is_ok_and(|n| n > 0) {}
+        stty(&["min", "1"]);
         let line = self.edit(prompt);
-        restore_terminal();
+        stty(&["icanon", "isig"]);
         println!();
         if let Some(line) = &line
             && !line.trim().is_empty()
