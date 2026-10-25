@@ -121,6 +121,7 @@ impl Debugger {
             Some("l") => self.list_points(),
             Some("q") => std::process::exit(0),
             Some("h") => self.help(),
+            Some("cls") => self.console.clear(),
             Some(other) => self.log(format!("unknown command: {other}")),
             None => (),
         }
