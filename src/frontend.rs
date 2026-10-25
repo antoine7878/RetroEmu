@@ -77,6 +77,9 @@ impl Frontend {
     }
 
     pub fn run(&mut self, game_boy: &mut GameBoy) -> Result<(), Box<dyn Error>> {
+        if self.dbg.is_some() {
+            game_boy.set_trace(true);
+        }
         let mut next_frame = Instant::now();
         'running: loop {
             next_frame += FRAME_TIME;

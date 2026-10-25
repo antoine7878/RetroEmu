@@ -9,7 +9,7 @@ use crate::argparser::{ArgError, ArgParser, argv};
 pub struct Args {
     pub infiles: Vec<String>,
     pub debug: bool,
-    pub breakpoints: Vec<u16>,
+    pub debug_init_file: Option<String>,
     argv: vec::IntoIter<String>,
 }
 
@@ -24,12 +24,7 @@ impl ArgParser for Args {
     fn flag(&mut self, c: char, it: &mut Chars) -> Result<(), ArgError> {
         match c {
             'g' => self.debug = true,
-            'b' => {
-                let s: String = self.value(it, 'b')?;
-                let addr =
-                    u16::from_str_radix(&s, 16).or(Err(ArgError::WrongValue('b', "invalid addres".to_string())))?;
-                self.breakpoints.push(addr);
-            }
+            'f' => self.debug_init_file = self.value(it, 'f')?,
             'h' => Self::help(),
             c => return Err(ArgError::UnknownOption(c)),
         }
@@ -38,7 +33,7 @@ impl ArgParser for Args {
 }
 
 impl Default for Args {
-    fn default() -> Self { Self { infiles: Vec::default(), debug: false, breakpoints: Vec::new(), argv: argv() } }
+    fn default() -> Self { Self { infiles: Vec::default(), debug: false, argv: argv(), debug_init_file: None } }
 }
 
 impl Args {
@@ -50,7 +45,7 @@ impl Args {
     }
 
     fn process(&mut self) {
-        if !self.breakpoints.is_empty() {
+        if self.debug_init_file.is_some() {
             self.debug = true;
         }
     }

@@ -1,3 +1,5 @@
+use crate::debugger::MemAccess;
+
 use super::cart::Cartridge;
 use super::constants::{
     AUDIO_END, AUDIO_START, BOOT_DISABLE, CRAM_END, CRAM_START, DMA_END, DMA_START, ECHO_END, ECHO_START, HRAM_END,
@@ -23,6 +25,8 @@ pub struct Bus {
     joypad: Joypad,
     timer: Timer,
     link: Link,
+    trace: bool,
+    accesses: Vec<MemAccess>,
 }
 
 impl Bus {
@@ -38,6 +42,8 @@ impl Bus {
             joypad: Joypad::default(),
             timer: Timer::default(),
             link: Link::default(),
+            trace: false,
+            accesses: Vec::new(),
         }
     }
 
@@ -70,6 +76,10 @@ impl Bus {
 
     pub fn read(&mut self, addr: u16) -> u8 {
         self.tick();
+        let value = self.read_internal(addr);
+        if self.trace {
+            self.accesses.push(MemAccess::read(addr, value));
+        }
         self.read_internal(addr)
     }
 
@@ -102,19 +112,19 @@ impl Bus {
 
     pub fn write(&mut self, addr: u16, value: u8) {
         self.tick();
+        if self.trace {
+            self.accesses.push(MemAccess::write(addr, value));
+        }
         self.write_internal(addr, value)
     }
 
-    /// ticks the system by M-cycles
-    pub fn ticks(&mut self, by: u8) {
-        for _ in 0..by {
+    pub fn ticks(&mut self, m_cycle: u8) {
+        for _ in 0..m_cycle {
             self.tick();
         }
     }
 
-    /// ticks the system by 1 M-cycles
     pub fn tick(&mut self) {
-        // let dots = if self.double_speed { 2 } else { 4 };
         let dots = 4;
         self.ppu.ticks(dots, &mut self.ifl);
         self.timer.tick(&mut self.ifl);
@@ -124,4 +134,6 @@ impl Bus {
     pub const fn get_cycle_count(&self) -> u64 { self.cycle_count }
     pub const fn get_pixels(&self) -> &[u8] { self.ppu.get_pixels() }
     pub fn take_redraw(&mut self) -> bool { self.ppu.take_redraw() }
+    pub fn set_trace(&mut self, on: bool) { self.trace = on; }
+    pub fn drain_accesses(&mut self) -> std::vec::Drain<'_, MemAccess> { self.accesses.drain(..) }
 }

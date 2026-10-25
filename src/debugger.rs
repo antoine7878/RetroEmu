@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
+use std::fs::read_to_string;
 
 use crate::args::Args;
 use crate::color::{GREY, RESET, WHITE};
@@ -27,6 +28,18 @@ impl fmt::Display for WatchOn {
             WatchOn::Write => write!(f, "write"),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct MemAccess {
+    pub addr: u16,
+    pub value: u8,
+    pub on: WatchOn,
+}
+
+impl MemAccess {
+    pub fn read(addr: u16, value: u8) -> Self { Self { addr, value, on: WatchOn::Read } }
+    pub fn write(addr: u16, value: u8) -> Self { Self { addr, value, on: WatchOn::Write } }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -61,7 +74,20 @@ pub struct Debugger {
 
 pub enum StopReason {
     Breakpoint(u16),
+    Watchpoint(MemAccess),
     Step,
+}
+
+impl fmt::Display for StopReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StopReason::Step => write!(f, "Step"),
+            StopReason::Breakpoint(addr) => write!(f, "Breakpoint at ${addr:04X}"),
+            StopReason::Watchpoint(MemAccess { addr, value, on }) => {
+                write!(f, "Watchpoint: {on} value {value} at ${addr:04X}")
+            }
+        }
+    }
 }
 
 pub enum DebugAction {
@@ -75,10 +101,15 @@ impl Debugger {
         if !args.debug {
             return None;
         }
-        Some(Self {
-            breakpoints: HashMap::from_iter(args.breakpoints.clone().into_iter().enumerate().map(|(a, b)| (b, a))),
-            ..Default::default()
-        })
+
+        let mut dbg = Self::default();
+        if let Some(file) = args.debug_init_file.as_ref() {
+            for line in read_to_string(file).unwrap().lines() {
+                // println!("gbdb: <{line}>");
+                dbg.handle_command(line);
+            }
+        }
+        Some(dbg)
     }
 
     pub fn check(&mut self, pc: u16) -> Option<StopReason> {
@@ -90,6 +121,12 @@ impl Debugger {
             self.history.push_back(pc);
         }
         reason
+    }
+
+    pub fn check_accesses(&mut self, mut accesses: impl Iterator<Item = MemAccess>) -> Option<StopReason> {
+        accesses
+            .find(|a| self.watchpoints.keys().any(|w| w.on == a.on && (w.start..=w.end).contains(&a.addr)))
+            .map(StopReason::Watchpoint)
     }
 
     fn stop_reason(&mut self, pc: u16) -> Option<StopReason> {
@@ -152,7 +189,7 @@ impl Debugger {
         let point_id = parse_int(it) as usize;
         let Some((&point, _)) = self.breakpoints.iter().find(|&(_, id)| id == &point_id) else { return };
         if let Some(id) = self.breakpoints.remove(&point) {
-            self.log(format!("Breakpoint {id} removed at {point:04X}"));
+            self.log(format!("Breakpoint {id} removed at ${point:04X}"));
         }
     }
 
@@ -280,13 +317,4 @@ fn parse_addr<'a, It: Iterator<Item = &'a str>>(it: &mut It) -> Option<u16> {
 }
 fn parse_int<'a, It: Iterator<Item = &'a str>>(it: &mut It) -> u32 {
     it.next().and_then(|s| s.parse().ok()).unwrap_or(1)
-}
-
-impl fmt::Display for StopReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StopReason::Step => write!(f, "Step"),
-            StopReason::Breakpoint(addr) => write!(f, "Breakpoint at ${addr:04X}"),
-        }
-    }
 }

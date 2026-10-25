@@ -21,10 +21,14 @@ impl GameBoy {
             }
             let c = self.cpu.step(&mut self.bus);
             self.bus.ticks(c);
+            if let Some(r) = dbg.as_deref_mut().and_then(|d| d.check_accesses(self.bus.drain_accesses())) {
+                return Some(r);
+            }
         }
         None
     }
 
+    pub fn set_trace(&mut self, on: bool) { self.bus.set_trace(on); }
     pub const fn pixels(&self) -> &[u8] { self.bus.get_pixels() }
 
     pub fn take_redraw(&mut self) -> bool { self.bus.take_redraw() }
