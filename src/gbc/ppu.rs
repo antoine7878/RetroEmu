@@ -318,10 +318,12 @@ impl Ppu {
 
     pub fn ticks<const T: u8>(&mut self, dots: u8, ifl: &mut IORegister<T>) {
         if self.lcdc.is_clear(LCDC_OFF) {
+            println!("non");
             self.dot = 0;
             self.ly.write_raw(0);
             return;
         }
+        panic!();
         println!("pased 0x{:04X}", PC.load(Ordering::Relaxed));
         for _ in 0..dots {
             self.tick(ifl);

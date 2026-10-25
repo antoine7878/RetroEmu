@@ -259,7 +259,7 @@ impl Debugger {
 
     fn disassembly_registers_panel(&self, game_boy: &GameBoy) -> String {
         let asm = self.make_asm(game_boy);
-        let regs = game_boy.registers();
+        let regs = game_boy.dump_registers();
         let mut out = format!("┌{:─<ASM_WIDTH$}┐┌{:─<REG_WIDTH$}┐\n", "─ Disassembly ", "─ Registers ");
         for i in 0..PANEL_HEIGHT {
             let left = asm.get(i).cloned().unwrap_or_else(|| pad("", ASM_WIDTH));

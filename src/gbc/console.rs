@@ -33,20 +33,6 @@ impl GameBoy {
 
     pub fn take_redraw(&mut self) -> bool { self.bus.take_redraw() }
 
-    pub fn registers(&self) -> Vec<String> {
-        let r = self.cpu.registers();
-        let flag = |bit, name| if bit == 1 { name } else { '-' };
-        let flags = [flag(r.get_z(), 'Z'), flag(r.get_n(), 'N'), flag(r.get_h(), 'H'), flag(r.get_c(), 'C')];
-        vec![
-            format!("AF {:04X}  {}", r.get_af(), String::from_iter(flags)),
-            format!("BC {:04X}", r.get_bc()),
-            format!("DE {:04X}", r.get_de()),
-            format!("HL {:04X}", r.get_hl()),
-            format!("SP {:04X}", r.get_sp()),
-            format!("PC {:04X}", r.pc()),
-        ]
-    }
-
     pub fn pc(&self) -> u16 { self.cpu.pc() }
 
     pub fn disassembly(&self, mut addr: u16, count: usize) -> Vec<(u16, String)> {
@@ -58,5 +44,24 @@ impl GameBoy {
                 r
             })
             .collect()
+    }
+
+    pub fn dump_registers(&self) -> Vec<String> {
+        let regs = self.cpu.registers();
+        let flag = |bit, name| if bit == 1 { name } else { '-' };
+        let flags = String::from_iter([
+            flag(regs.get_z(), 'Z'),
+            flag(regs.get_n(), 'N'),
+            flag(regs.get_h(), 'H'),
+            flag(regs.get_c(), 'C'),
+        ]);
+        vec![
+            format!("AF {:04X}  {}", regs.get_af(), flags),
+            format!("BC {:04X}", regs.get_bc()),
+            format!("DE {:04X}", regs.get_de()),
+            format!("HL {:04X}", regs.get_hl()),
+            format!("SP {:04X}", regs.get_sp()),
+            format!("PC {:04X}", regs.pc()),
+        ]
     }
 }

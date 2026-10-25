@@ -1,6 +1,5 @@
-use crate::debugger::MemAccess;
-
 use super::cart::Cartridge;
+
 use super::constants::{
     AUDIO_END, AUDIO_START, BOOT_DISABLE, CRAM_END, CRAM_START, DMA_END, DMA_START, ECHO_END, ECHO_START, HRAM_END,
     HRAM_SIZE, HRAM_START, IE, IF, JOYPAD, KEY0, KEY1, NOT_END, NOT_START, OAM_END, OAM_START, PAL_END, PAL_START,
@@ -13,6 +12,7 @@ use super::link::Link;
 use super::ppu::Ppu;
 use super::timer::Timer;
 use super::wram::WRam;
+use crate::debugger::MemAccess;
 
 pub struct Bus {
     cart: Cartridge,
@@ -75,6 +75,9 @@ impl Bus {
     }
 
     pub fn read(&mut self, addr: u16) -> u8 {
+        if addr == 0xFF01 || addr == 0xFF02 {
+            println!("READ at {addr:04X}")
+        }
         self.tick();
         let value = self.read_internal(addr);
         if self.trace {
@@ -111,6 +114,9 @@ impl Bus {
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
+        if addr == 0xFF01 || addr == 0xFF02 {
+            println!("WRITE {value} at {addr:04X}")
+        }
         self.tick();
         if self.trace {
             self.accesses.push(MemAccess::write(addr, value));
