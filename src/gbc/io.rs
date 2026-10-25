@@ -1,11 +1,14 @@
 use std::ops::{AddAssign, BitOr};
 
+use super::config::GCMode;
+
 #[derive(Default)]
-pub struct IORegister<const WRITE: u8, const READ: u8 = WRITE> {
+pub struct IORegister<const ADDR: u16, const WRITE: u8, const READ: u8 = WRITE> {
     raw: u8,
 }
 
-impl<const WRITE: u8, const READ: u8> IORegister<WRITE, READ> {
+impl<const ADDR: u16, const WRITE: u8, const READ: u8> IORegister<ADDR, WRITE, READ> {
+    pub fn init(&mut self, mode: GCMode) { self.raw = mode.initial_value(ADDR); }
     pub fn set(&mut self, bit: u8) { self.raw |= 1 << bit }
     pub fn clear(&mut self, bit: u8) { self.raw &= !(1 << bit) }
     pub fn is_set(&self, bit: u8) -> bool { self.raw & (1 << bit) > 0 }
@@ -14,20 +17,20 @@ impl<const WRITE: u8, const READ: u8> IORegister<WRITE, READ> {
     pub fn write_raw(&mut self, value: u8) { self.raw = value }
 }
 
-impl<const WRITE: u8, const READ: u8> AddAssign<u8> for IORegister<WRITE, READ> {
+impl<const ADDR: u16, const WRITE: u8, const READ: u8> AddAssign<u8> for IORegister<ADDR, WRITE, READ> {
     fn add_assign(&mut self, rhs: u8) { self.raw = self.raw.wrapping_add(rhs); }
 }
 
-impl<const WRITE: u8, const READ: u8> BitOr<u8> for &IORegister<WRITE, READ> {
+impl<const ADDR: u16, const WRITE: u8, const READ: u8> BitOr<u8> for &IORegister<ADDR, WRITE, READ> {
     type Output = u8;
     fn bitor(self, rhs: u8) -> Self::Output { self.read() | rhs }
 }
 
-impl<const WRITE: u8, const READ: u8> PartialEq for IORegister<WRITE, READ> {
+impl<const ADDR: u16, const WRITE: u8, const READ: u8> PartialEq for IORegister<ADDR, WRITE, READ> {
     fn eq(&self, other: &Self) -> bool { self.raw == other.raw }
 }
 
-impl<const WRITE: u8, const READ: u8> IOReg for IORegister<WRITE, READ> {
+impl<const ADDR: u16, const WRITE: u8, const READ: u8> IOReg for IORegister<ADDR, WRITE, READ> {
     fn read(&self) -> u8 { (self.raw & READ) | !READ }
     fn write(&mut self, value: u8) { self.raw = (self.raw & !WRITE) | (value & WRITE) }
 }

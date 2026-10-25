@@ -1,5 +1,7 @@
-use super::cart::Cartridge;
+use crate::debugger::MemAccess;
 
+use super::cart::Cartridge;
+use super::config::GCMode;
 use super::constants::{
     AUDIO_END, AUDIO_START, BOOT_DISABLE, CRAM_END, CRAM_START, DMA_END, DMA_START, ECHO_END, ECHO_START, HRAM_END,
     HRAM_SIZE, HRAM_START, IE, IF, JOYPAD, KEY0, KEY1, NOT_END, NOT_START, OAM_END, OAM_START, PAL_END, PAL_START,
@@ -12,7 +14,6 @@ use super::link::Link;
 use super::ppu::Ppu;
 use super::timer::Timer;
 use super::wram::WRam;
-use crate::debugger::MemAccess;
 
 pub struct Bus {
     cart: Cartridge,
@@ -20,8 +21,8 @@ pub struct Bus {
     wram: WRam,
     hram: [u8; HRAM_SIZE],
     cycle_count: u64,
-    ie: IORegister<0xFF>,
-    ifl: IORegister<0x1F>,
+    ie: IORegister<IE, 0xFF>,
+    ifl: IORegister<IF, 0x1F>,
     joypad: Joypad,
     timer: Timer,
     link: Link,
@@ -45,6 +46,16 @@ impl Bus {
             trace: false,
             accesses: Vec::new(),
         }
+    }
+
+    pub fn init_reg(&mut self, mode: GCMode) {
+        self.ppu.init_reg(mode);
+        self.wram.init_reg(mode);
+        self.ie.write_raw(mode.initial_value(IE));
+        self.ifl.write_raw(mode.initial_value(IF));
+        self.joypad.init_reg(mode);
+        self.timer.init_reg(mode);
+        self.link.init_reg(mode);
     }
 
     pub fn read_internal(&self, addr: u16) -> u8 {

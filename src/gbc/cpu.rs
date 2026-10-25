@@ -1,4 +1,5 @@
 use super::bus::Bus;
+use super::config::GCMode;
 use super::constants::DIV;
 use super::flag::{FlagSpec, Flags};
 use super::instruction::{AluOp, Cond, Instruction, R8, R16, R16Mem, R16Stk, ShiftOp};
@@ -13,6 +14,7 @@ pub enum PowerMode {
     Stop,
 }
 
+#[derive(Default)]
 pub struct Cpu {
     power_mode: PowerMode,
     ime: bool,
@@ -20,11 +22,7 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new() -> Self {
-        let mut registers = CpuRegisters::default();
-        registers.init(super::config::GCMode::Dmg);
-        Self { power_mode: PowerMode::default(), ime: false, registers }
-    }
+    pub fn init_reg(&mut self, mode: GCMode) { self.registers.init(mode); }
 
     pub fn step(&mut self, bus: &mut Bus) -> u8 {
         let opcode = self.take_pc8(bus);

@@ -1,19 +1,27 @@
-#![allow(unused)]
-
-use super::constants::{DIV, TAC, TIMA, TMA};
+use super::config::GCMode;
+use super::constants::{DIV, IF, TAC, TIMA, TMA};
 use super::io::{IOReg, IORegister};
 
 #[derive(Default)]
 pub struct Timer {
-    div: IORegister<0xFF>,
-    tima: IORegister<0xFF>,
-    tma: IORegister<0xFF>,
-    tac: IORegister<0x07>,
+    div: IORegister<DIV, 0xFF>,
+    tima: IORegister<TIMA, 0xFF>,
+    tma: IORegister<TMA, 0xFF>,
+    tac: IORegister<TAC, 0x07>,
     tima_clock: u8,
     div_clock: u8,
 }
 
 impl Timer {
+    pub fn init_reg(&mut self, mode: GCMode) {
+        self.div.init(mode);
+        self.tima.init(mode);
+        self.tma.init(mode);
+        self.tac.init(mode);
+        self.div_clock = 0;
+        self.reset_tima_clock();
+    }
+
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
             DIV => self.div.read(),
@@ -43,7 +51,7 @@ impl Timer {
     const CLOCKS: [u8; 4] = [255, 3, 15, 63];
     fn reset_tima_clock(&mut self) { self.tima_clock = Self::CLOCKS[self.tac.read_raw() as usize & 0b11]; }
 
-    pub fn tick(&mut self, ifl: &mut IORegister<0x1F>) {
+    pub fn tick(&mut self, ifl: &mut IORegister<IF, 0x1F>) {
         self.tick_div();
         if self.tac.read_raw() & 0b100 == 0 {
             return;
@@ -65,7 +73,7 @@ impl Timer {
         }
     }
 
-    fn tick_tima(&mut self, ifl: &mut IORegister<0x1F>) {
+    fn tick_tima(&mut self, ifl: &mut IORegister<IF, 0x1F>) {
         if self.tima.read_raw() == 0xFF {
             self.tima.write_raw(self.tma.read_raw());
             ifl.set(2);

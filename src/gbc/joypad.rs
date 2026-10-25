@@ -1,5 +1,4 @@
-#![allow(unused)]
-
+use super::config::GCMode;
 use super::io::IOReg;
 
 const UNUSED_BITS: u8 = 0b1100_0000;
@@ -70,6 +69,12 @@ impl Default for Joypad {
 }
 
 impl Joypad {
+    pub fn init_reg(&mut self, mode: GCMode) {
+        self.select = mode.initial_value(0xFF00);
+        self.dpad = mode.initial_value(0xFF00);
+        self.buttons = mode.initial_value(0xFF00);
+    }
+
     fn group(&mut self, button: Button) -> &mut u8 {
         if button.is_action() { &mut self.buttons } else { &mut self.dpad }
     }

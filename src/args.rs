@@ -20,7 +20,6 @@ impl ArgParser for Args {
 
     fn argv(&mut self) -> &mut Self::Argv { &mut self.argv }
 
-    #[allow(unused)]
     fn flag(&mut self, c: char, it: &mut Chars) -> Result<(), ArgError> {
         match c {
             'g' => self.debug = true,

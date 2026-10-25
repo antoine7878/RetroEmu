@@ -1,11 +1,10 @@
-use super::{
-    constants::{SVBK, WRAM_END, WRAM_SIZE, WRAM_START},
-    io::{IOReg, IORegister},
-};
+use super::config::GCMode;
+use super::constants::{SVBK, WRAM_END, WRAM_SIZE, WRAM_START};
+use super::io::{IOReg, IORegister};
 
 pub struct WRam {
     banks: [[u8; WRAM_SIZE]; 8],
-    svbk: IORegister<0x07>,
+    svbk: IORegister<SVBK, 0x07>,
 }
 
 impl Default for WRam {
@@ -15,6 +14,8 @@ impl Default for WRam {
 const FIRST_END: u16 = WRAM_START + (WRAM_SIZE / 2) as u16;
 
 impl WRam {
+    pub fn init_reg(&mut self, mode: GCMode) { self.svbk.init(mode); }
+
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
             WRAM_START..FIRST_END => self.banks[0][(addr - WRAM_START) as usize],

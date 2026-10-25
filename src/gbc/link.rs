@@ -1,15 +1,19 @@
-#![allow(unused)]
-
+use super::config::GCMode;
 use super::constants::{SB, SC};
 use super::io::{IOReg, IORegister};
 
 #[derive(Default)]
 pub struct Link {
-    buffer: IORegister<0xFF>,
-    ctrl: IORegister<0x83>,
+    buffer: IORegister<SB, 0xFF>,
+    ctrl: IORegister<SC, 0x83>,
 }
 
 impl Link {
+    pub fn init_reg(&mut self, mode: GCMode) {
+        self.buffer.init(mode);
+        self.ctrl.init(mode);
+    }
+
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
             SB => self.buffer.read(),

@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use std::collections::HashSet;
 
 use super::constants::{CARTIDGE_TYPE, CRAM_SIZE, CRAM_START, RAM_SIZE_FLAG, ROM_SIZE_FLAG};
@@ -97,7 +95,7 @@ impl Cartridge {
             0xFD => &[Mbc::Tama5],
             0xFE => &[Mbc::HuC3],
             0xFF => &[Mbc::HuC1, Mbc::Ram, Mbc::Battery],
-            _ => panic!("invalide cartridge type"),
+            _ => unimplemented!("invalide cartridge type"),
         };
         HashSet::from_iter(s.iter().cloned())
     }
@@ -108,7 +106,7 @@ impl Cartridge {
             0x52 => 72,
             0x53 => 80,
             0x54 => 96,
-            _ => panic!("Invalid rom size"),
+            _ => unimplemented!("Invalid rom size"),
         }
     }
 
@@ -119,7 +117,7 @@ impl Cartridge {
             0x03 => 4,
             0x04 => 16,
             0x05 => 8,
-            _ => panic!("Invalud ram size"),
+            _ => unimplemented!("Invalud ram size"),
         }
     }
 }

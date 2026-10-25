@@ -2,6 +2,7 @@ use std::sync::atomic::Ordering;
 
 use crate::PC;
 
+use super::config::GCMode;
 use super::constants::{
     BGP, DMA, DMA_END, DMA_START, HEIGHT, LCDC, LCDC_OFF, LY, LYC, OAM_END, OAM_SIZE, OAM_START, OBP0, OBP1, PAL_END,
     PAL_START, PALETTE_ORIGNAL, SCX, SCY, STAT, VBK, VRAM_END, VRAM_SIZE, VRAM_START, WIDTH, WX, WY,
@@ -29,19 +30,19 @@ pub struct Ppu {
 
     vram: [[u8; VRAM_SIZE]; 2],
     oam: [u8; OAM_SIZE],
-    lcdc: IORegister<0xFF>,
-    stat: IORegister<0x78>,
-    scy: IORegister<0xFF>,
-    scx: IORegister<0xFF>,
-    ly: IORegister<0x00, 0xFF>,
-    lyc: IORegister<0xFF>,
-    dma: IORegister<0xFF>,
-    bgp: IORegister<0xFF>,
-    opb0: IORegister<0xFF>,
-    opb1: IORegister<0xFF>,
-    wy: IORegister<0xFF>,
-    wx: IORegister<0xFF>,
-    vbk: IORegister<0x01>,
+    lcdc: IORegister<LCDC, 0xFF>,
+    stat: IORegister<STAT, 0x78>,
+    scy: IORegister<SCY, 0xFF>,
+    scx: IORegister<SCX, 0xFF>,
+    ly: IORegister<LY, 0x00, 0xFF>,
+    lyc: IORegister<LYC, 0xFF>,
+    dma: IORegister<DMA, 0xFF>,
+    bgp: IORegister<BGP, 0xFF>,
+    opb0: IORegister<OBP0, 0xFF>,
+    opb1: IORegister<OBP1, 0xFF>,
+    wy: IORegister<WY, 0xFF>,
+    wx: IORegister<WX, 0xFF>,
+    vbk: IORegister<VBK, 0x01>,
 }
 
 impl Default for Ppu {
@@ -75,6 +76,22 @@ impl Default for Ppu {
 }
 
 impl Ppu {
+    pub fn init_reg(&mut self, mode: GCMode) {
+        self.lcdc.init(mode);
+        self.stat.init(mode);
+        self.scy.init(mode);
+        self.scx.init(mode);
+        self.ly.init(mode);
+        self.lyc.init(mode);
+        self.dma.init(mode);
+        self.bgp.init(mode);
+        self.opb0.init(mode);
+        self.opb1.init(mode);
+        self.wy.init(mode);
+        self.wx.init(mode);
+        self.vbk.init(mode);
+    }
+
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
             VRAM_START..VRAM_END => self.read_vram(addr),
@@ -99,7 +116,7 @@ impl Ppu {
             WY => self.wy.read(),
             WX => self.wx.read(),
             VBK => self.vbk.read(),
-            _ => panic!("Address not in PPU"),
+            _ => unreachable!("Address not in PPU"),
         }
     }
 
@@ -137,7 +154,7 @@ impl Ppu {
             WY => self.wy.write(value),
             WX => self.wx.write(value),
             VBK => self.vbk.write(value),
-            _ => panic!("Address not in PPU"),
+            _ => unreachable!("Address not in PPU"),
         }
     }
 
@@ -165,12 +182,12 @@ impl Ppu {
         self.vram[0][start..start + 16].try_into().unwrap()
     }
 
-    fn set_mode<const T: u8>(&mut self, mode: PpuMode, ifl: &mut IORegister<T>) {
+    fn set_mode<const A: u16, const T: u8>(&mut self, mode: PpuMode, ifl: &mut IORegister<A, T>) {
         self.mode = mode;
         self.update_stat_line(ifl);
     }
 
-    fn update_stat_line<const T: u8>(&mut self, ifl: &mut IORegister<T>) {
+    fn update_stat_line<const A: u16, const T: u8>(&mut self, ifl: &mut IORegister<A, T>) {
         let lyc_match = self.ly.read_raw() == self.lyc.read_raw();
 
         let stat = self.stat.read();
@@ -185,7 +202,7 @@ impl Ppu {
         self.stat_line = line;
     }
 
-    fn tick<const T: u8>(&mut self, ifl: &mut IORegister<T>) {
+    fn tick<const A: u16, const T: u8>(&mut self, ifl: &mut IORegister<A, T>) {
         self.dot += 1;
         match self.mode {
             PpuMode::OamScan if self.dot == 80 => {
@@ -280,7 +297,7 @@ impl Ppu {
             // let priority = attr & 0x80 > 0;
             // let flip_y = attr & 0x40 > 0;
             // let flip_x = attr & 0x20 > 0;
-            let palette = if attr >> 4 & 1 == 0 { &self.opb0 } else { &self.opb1 }.read();
+            let palette = if attr >> 4 & 1 == 0 { self.opb0.read() } else { self.opb1.read() };
             let row_in_tile = ((screen_y + 16 - tile_y) % 8) as usize;
             let tile_x = *tile_x as usize;
             for lx in 0..8 {
@@ -298,7 +315,7 @@ impl Ppu {
 
     fn render_window(&mut self, _line_buffer: &mut [u8; WIDTH]) {}
 
-    fn next_line<const T: u8>(&mut self, ifl: &mut IORegister<T>) {
+    fn next_line<const A: u16, const T: u8>(&mut self, ifl: &mut IORegister<A, T>) {
         self.ly += 1;
         match self.ly.read() {
             144 => {
@@ -316,14 +333,12 @@ impl Ppu {
         }
     }
 
-    pub fn ticks<const T: u8>(&mut self, dots: u8, ifl: &mut IORegister<T>) {
+    pub fn ticks<const A: u16, const T: u8>(&mut self, dots: u8, ifl: &mut IORegister<A, T>) {
         if self.lcdc.is_clear(LCDC_OFF) {
-            println!("non");
             self.dot = 0;
             self.ly.write_raw(0);
             return;
         }
-        panic!();
         println!("pased 0x{:04X}", PC.load(Ordering::Relaxed));
         for _ in 0..dots {
             self.tick(ifl);
