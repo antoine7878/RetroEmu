@@ -15,6 +15,18 @@ const HISTORY_LEN: usize = 3;
 const ASM_WIDTH: usize = 32;
 const REG_WIDTH: usize = 20;
 const CONSOLE_HEIGHT: usize = 10;
+const SHORTCUTS: [(&str, &str); 10] = [
+    ("c", "Continue"),
+    ("s", "Step"),
+    ("t", "Trace"),
+    ("[ad][bw]", "Add/Delete Breakpoint/Watchpoint"),
+    ("l", "List"),
+    ("cls", "Clear"),
+    ("r", "Reset"),
+    ("⏎", "Repeat"),
+    ("q", "Quit"),
+    ("h", "Help"),
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum WatchOn {
@@ -283,10 +295,12 @@ impl Debugger {
         let mut out = String::from("\x1b[H\x1b[J");
         out += &self.disassembly_registers_panel(game_boy);
         out += &self.console_lines();
-        println!("{out}");
+        out += &format!("\n\n{}\x1b[A\r", shortcut_bar(terminal_size().map_or(usize::MAX, |(_, cols)| cols)));
+        let mut stdout = std::io::stdout().lock();
+        let _ = write!(stdout, "{out}");
+        let _ = stdout.flush();
     }
 
-    /// Redraw the panels in place, leaving the cursor (and the prompt line) untouched.
     pub fn draw_live(&self, game_boy: &GameBoy) {
         let body = self.disassembly_registers_panel(game_boy) + &self.console_lines();
         let mut stdout = std::io::stdout().lock();
@@ -340,13 +354,29 @@ impl Debugger {
 
 fn pad(s: &str, width: usize) -> String { format!("{s:<width$.width$}") }
 
-fn console_height() -> usize {
-    terminal_rows().map_or(CONSOLE_HEIGHT, |rows| rows.saturating_sub(PANEL_HEIGHT + 2 + 2).max(1))
+fn shortcut_bar(width: usize) -> String {
+    let mut out = String::new();
+    let mut len = 0;
+    for (key, desc) in SHORTCUTS {
+        let item_len = key.chars().count() + 1 + desc.len() + 2;
+        if len + item_len > width {
+            break;
+        }
+        len += item_len;
+        out += &format!("{WHITE}{key}{RESET} {desc}  ");
+    }
+    out
 }
 
-fn terminal_rows() -> Option<usize> {
+fn console_height() -> usize {
+    terminal_size().map_or(CONSOLE_HEIGHT, |(rows, _)| rows.saturating_sub(PANEL_HEIGHT + 2 + 2).max(1))
+}
+
+fn terminal_size() -> Option<(usize, usize)> {
     let out = std::process::Command::new("stty").arg("size").stdin(std::process::Stdio::inherit()).output().ok()?;
-    String::from_utf8(out.stdout).ok()?.split_whitespace().next()?.parse().ok()
+    let out = String::from_utf8(out.stdout).ok()?;
+    let mut it = out.split_whitespace().map(|n| n.parse().ok());
+    Some((it.next()??, it.next()??))
 }
 fn parse_addr<'a, It: Iterator<Item = &'a str>>(it: &mut It) -> Option<u16> {
     it.next()?.strip_prefix('$').and_then(|hex| u16::from_str_radix(hex, 16).ok())

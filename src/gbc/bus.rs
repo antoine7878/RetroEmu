@@ -129,9 +129,6 @@ impl Bus {
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
-        // if addr == 0xFF01 || addr == 0xFF02 {
-        //     println!("WRITE {value} at {addr:04X}")
-        // }
         self.tick();
         if self.trace {
             self.accesses.push(MemAccess::write(addr, value));
