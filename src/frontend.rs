@@ -37,16 +37,16 @@ impl Frontend {
     pub fn new(args: Args, sdl: Sdl) -> Result<Self, Box<dyn Error>> {
         let event_pump = sdl.event_pump()?;
 
-        let (canvas, texture) = Self::init_texture(&sdl)?;
+        let (canvas, texture) = Self::new_texture(&sdl)?;
         let mode = Mode::Running;
         let dbg = Debugger::new(&args);
-        let (commands, prompt_ready) = Self::init_debug_thread();
+        let (commands, prompt_ready) = Self::new_debug_thread();
         let last_cmd = String::new();
         let terminal = std::env::var("__CFBundleIdentifier").ok();
         Ok(Self { event_pump, canvas, texture, dbg, mode, commands, prompt_ready, last_cmd, terminal })
     }
 
-    fn init_texture(sdl: &Sdl) -> Result<(Canvas<Window>, Texture), Box<dyn Error>> {
+    fn new_texture(sdl: &Sdl) -> Result<(Canvas<Window>, Texture), Box<dyn Error>> {
         let window = sdl
             .video()?
             .window("RetoEmu", WIDTH as u32 * SCALE, HEIGHT as u32 * SCALE)
@@ -61,7 +61,7 @@ impl Frontend {
         Ok((canvas, texture))
     }
 
-    fn init_debug_thread() -> (Receiver<String>, Sender<()>) {
+    fn new_debug_thread() -> (Receiver<String>, Sender<()>) {
         let (tx, commands) = std::sync::mpsc::channel();
         let (prompt_ready, ready) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
