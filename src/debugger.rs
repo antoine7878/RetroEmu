@@ -103,7 +103,7 @@ impl fmt::Display for StopReason {
             StopReason::Step => write!(f, "{YELLOW}Step{RESET}"),
             StopReason::Breakpoint(addr) => write!(f, "{YELLOW}Breakpoint{RESET} at {CYAN}${addr:04X}{RESET}"),
             StopReason::Watchpoint(MemAccess { addr, value, on }) => {
-                write!(f, "{YELLOW}Watchpoint{RESET}: {on} value {value} at {CYAN}${addr:04X}{RESET}")
+                write!(f, "{YELLOW}Watchpoint{RESET}: {on} value 0x{value:02X} at {CYAN}${addr:04X}{RESET}")
             }
         }
     }
@@ -126,7 +126,14 @@ impl Debugger {
         let initial_cmds = args
             .debug_init_file
             .as_ref()
-            .map(|file| read_to_string(file).unwrap().lines().map(|s| s.to_string()).collect())
+            .map(|file| {
+                read_to_string(file)
+                    .unwrap()
+                    .lines()
+                    .filter(|l| !l.trim_start().starts_with("#"))
+                    .map(|s| s.to_string())
+                    .collect()
+            })
             .unwrap_or_default();
         let mut dbg = Self { initial_cmds, ..Default::default() };
         dbg.reset();
@@ -243,9 +250,13 @@ impl Debugger {
             Some("w" | "write") => WatchOn::Write,
             _ => return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}")),
         };
-        let Some(range) = it.next() else { return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}")) };
+        let Some(range) = it.next() else {
+            return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}"));
+        };
         let it = &mut range.split("..");
-        let Some(start) = parse_addr(it) else { return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}")) };
+        let Some(start) = parse_addr(it) else {
+            return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}"));
+        };
         let end = parse_addr(it).unwrap_or(start);
         let point = Watchpoint { start, end, on, value: None };
         if self.watchpoints.insert(point, max_id).is_none() {
@@ -315,7 +326,13 @@ impl Debugger {
     fn disassembly_registers_panel(&self, game_boy: &GameBoy) -> String {
         let asm = self.make_asm(game_boy);
         let regs = game_boy.dump_registers();
-        let mut out = format!("┌─{BOLD} Disassembly {RESET}{:─<w1$}┐┌─{BOLD} Registers {RESET}{:─<w2$}┐\n", "", "", w1 = ASM_WIDTH - 14, w2 = REG_WIDTH - 12);
+        let mut out = format!(
+            "┌─{BOLD} Disassembly {RESET}{:─<w1$}┐┌─{BOLD} Registers {RESET}{:─<w2$}┐\n",
+            "",
+            "",
+            w1 = ASM_WIDTH - 14,
+            w2 = REG_WIDTH - 12
+        );
         for i in 0..PANEL_HEIGHT {
             let left = asm.get(i).cloned().unwrap_or_else(|| pad("", ASM_WIDTH));
             let right = pad(regs.get(i).map_or("", String::as_str), REG_WIDTH);

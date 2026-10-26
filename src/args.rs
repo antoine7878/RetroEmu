@@ -10,6 +10,7 @@ pub struct Args {
     pub infiles: Vec<String>,
     pub debug: bool,
     pub debug_init_file: Option<String>,
+    pub frame_time: u64,
     argv: vec::IntoIter<String>,
 }
 
@@ -24,6 +25,10 @@ impl ArgParser for Args {
         match c {
             'g' => self.debug = true,
             'f' => self.debug_init_file = self.value(it, 'f')?,
+            't' => {
+                let s: String = self.value(it, 'f')?;
+                self.frame_time = s.parse().unwrap();
+            }
             'h' => Self::help(),
             c => return Err(ArgError::UnknownOption(c)),
         }
@@ -32,7 +37,9 @@ impl ArgParser for Args {
 }
 
 impl Default for Args {
-    fn default() -> Self { Self { infiles: Vec::default(), debug: false, argv: argv(), debug_init_file: None } }
+    fn default() -> Self {
+        Self { infiles: Vec::default(), debug: false, argv: argv(), debug_init_file: None, frame_time: 1_000_000_000 }
+    }
 }
 
 impl Args {

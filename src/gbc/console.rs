@@ -8,7 +8,7 @@ use super::instruction::Instruction;
 pub struct GameBoy {
     cpu: Cpu,
     bus: Bus,
-    config: Config,
+    pub config: Config,
 }
 
 impl GameBoy {

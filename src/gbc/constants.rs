@@ -79,7 +79,6 @@ pub const CARRY_FLAG: u8 = 4;
 
 pub const SCALE: u32 = 2;
 pub const FRAME_RATE: u32 = 60;
-pub const FRAME_TIME: Duration = Duration::from_nanos(1_000_000_000 / FRAME_RATE as u64);
 
 pub const PALETTE_ORIGNAL: [[u8; 3]; 4] =
     [[0x2A, 0x41, 0x39], [0x7B, 0x82, 0x0F], [0x5A, 0x79, 0x42], [0x39, 0x59, 0x4A]];

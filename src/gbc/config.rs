@@ -1,5 +1,7 @@
 use std::error::Error;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use crate::args::Args;
 
 use super::constants::CGB_FLAG;
 
@@ -92,13 +94,16 @@ pub struct Config {
     pub instructions_per_frame: u64,
     pub rng_seed: u32,
     pub mode: GCMode,
+    pub frame_time: Duration,
 }
 
 impl Config {
-    pub fn new(rom: &[u8]) -> Result<Self, Box<dyn Error>> {
+    pub fn new(args: &Args, rom: &[u8]) -> Result<Self, Box<dyn Error>> {
         let rng_seed = SystemTime::now().duration_since(UNIX_EPOCH)?.subsec_nanos();
         let mode = Self::mode(rom);
-        Ok(Self { rng_seed, mode, instructions_per_frame: 69905 })
+        let frame_time = Duration::from_nanos(args.frame_time / FRAME_RATE as u64);
+        let instructions_per_frame = 69905;
+        Ok(Self { rng_seed, mode, instructions_per_frame, frame_time })
     }
 
     fn mode(rom: &[u8]) -> GCMode {

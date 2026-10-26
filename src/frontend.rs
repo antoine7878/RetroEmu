@@ -2,7 +2,7 @@ use std::error::Error;
 use std::process::Command;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::sleep;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
@@ -13,8 +13,31 @@ use sdl2::{EventPump, Sdl};
 
 use crate::args::Args;
 use crate::debugger::{DebugAction, Debugger, StopReason};
-use crate::gbc::{FRAME_TIME, GameBoy, HEIGHT, PROMPT, SCALE, WIDTH};
+use crate::gbc::{GameBoy, HEIGHT, PROMPT, SCALE, WIDTH};
 use crate::prompt::{self, Prompt};
+
+struct FpsCounter {
+    window_start: Instant,
+    emulated: u32,
+    presented: u32,
+}
+
+impl Default for FpsCounter {
+    fn default() -> Self { Self { window_start: Instant::now(), emulated: 0, presented: 0 } }
+}
+
+impl FpsCounter {
+    fn tick(&mut self) -> Option<(f64, f64)> {
+        let elapsed = self.window_start.elapsed();
+        if elapsed < Duration::from_secs(1) {
+            return None;
+        }
+        let secs = elapsed.as_secs_f64();
+        let fps = (self.emulated as f64 / secs, self.presented as f64 / secs);
+        *self = Self::default();
+        Some(fps)
+    }
+}
 
 enum Mode {
     Running,
@@ -33,6 +56,7 @@ pub struct Frontend {
     last_cmd: String,
     dbg: Option<Debugger>,
     terminal: Option<String>,
+    fps: FpsCounter,
 }
 
 impl Frontend {
@@ -45,19 +69,33 @@ impl Frontend {
         let last_cmd = String::new();
         let terminal = std::env::var("__CFBundleIdentifier").ok();
         let prompt_pending = false;
-        Ok(Self { event_pump, canvas, texture, dbg, mode, commands, prompt_ready, prompt_pending, last_cmd, terminal })
+        let fps = FpsCounter::default();
+        Ok(Self {
+            event_pump,
+            canvas,
+            texture,
+            dbg,
+            mode,
+            commands,
+            prompt_ready,
+            prompt_pending,
+            last_cmd,
+            terminal,
+            fps,
+        })
     }
 
     pub fn reset(&mut self) {
         self.mode = Mode::Running;
         self.last_cmd = String::new();
         self.terminal = std::env::var("__CFBundleIdentifier").ok();
+        self.fps = FpsCounter::default();
     }
 
     fn new_texture(sdl: &Sdl) -> Result<(Canvas<Window>, Texture), Box<dyn Error>> {
         let window = sdl
             .video()?
-            .window("RetoEmu", WIDTH as u32 * SCALE, HEIGHT as u32 * SCALE)
+            .window("RetroEmu", WIDTH as u32 * SCALE, HEIGHT as u32 * SCALE)
             .position_centered()
             .always_on_top()
             .build()?;
@@ -90,7 +128,7 @@ impl Frontend {
         }
         let mut next_frame = Instant::now();
         'running: loop {
-            next_frame += FRAME_TIME;
+            next_frame += game_boy.config.frame_time;
 
             for event in self.event_pump.poll_iter() {
                 if let Event::Quit { .. } | Event::KeyDown { scancode: Some(Scancode::Escape), .. } = event {
@@ -112,6 +150,7 @@ impl Frontend {
 
             match self.mode {
                 Mode::Running => {
+                    self.fps.emulated += 1;
                     if let Some(reason) = game_boy.run_frame(self.dbg.as_mut()) {
                         self.stop(reason, game_boy);
                     }
@@ -120,6 +159,7 @@ impl Frontend {
                     if let Some(dbg) = self.dbg.as_mut() {
                         dbg.set_step_budget(n);
                     }
+                    self.fps.emulated += 1;
                     match game_boy.run_frame(self.dbg.as_mut()) {
                         None | Some(StopReason::Step) => {
                             if let Some(dbg) = &self.dbg {
@@ -134,10 +174,14 @@ impl Frontend {
 
             self.draw(game_boy)?;
 
+            if let Some((emu, lcd)) = self.fps.tick() {
+                let _ = self.canvas.window_mut().set_title(&format!("RetroEmu - {emu:.1} fps (lcd {lcd:.1})"));
+            }
+
             let now = Instant::now();
             match next_frame.checked_duration_since(now) {
                 Some(remaining) => sleep(remaining),
-                None if now - next_frame > FRAME_TIME * 5 => next_frame = now,
+                None if now - next_frame > game_boy.config.frame_time * 5 => next_frame = now,
                 None => {}
             }
         }
@@ -150,6 +194,7 @@ impl Frontend {
             self.texture.update(None, game_boy.pixels(), WIDTH * 3)?;
             self.canvas.copy(&self.texture, None, None)?;
             self.canvas.present();
+            self.fps.presented += 1;
         }
         Ok(())
     }
