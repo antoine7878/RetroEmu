@@ -2,6 +2,7 @@ use crate::debugger::{Debugger, StopReason};
 
 use super::bus::Bus;
 use super::config::Config;
+use super::constants::CYCLES_PER_FRAME;
 use super::cpu::Cpu;
 use super::instruction::Instruction;
 
@@ -21,7 +22,7 @@ impl GameBoy {
 
     pub fn run_frame(&mut self, mut dbg: Option<&mut Debugger>) -> Option<StopReason> {
         let start = self.bus.get_cycle_count();
-        while self.bus.get_cycle_count() - start < self.config.instructions_per_frame {
+        while self.bus.get_cycle_count() - start < CYCLES_PER_FRAME {
             if let Some(r) = dbg.as_deref_mut().and_then(|d| d.check(self.cpu.pc())) {
                 return Some(r);
             }
@@ -39,6 +40,8 @@ impl GameBoy {
     pub fn take_redraw(&mut self) -> bool { self.bus.take_redraw() }
 
     pub fn pc(&self) -> u16 { self.cpu.pc() }
+
+    pub const fn cycle_count(&self) -> u64 { self.bus.get_cycle_count() }
 
     pub fn disassembly(&self, mut addr: u16, count: usize) -> Vec<(u16, String)> {
         (0..count)

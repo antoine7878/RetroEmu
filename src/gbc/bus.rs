@@ -92,9 +92,6 @@ impl Bus {
     }
 
     pub fn read(&mut self, addr: u16) -> u8 {
-        if addr == 0xFF01 || addr == 0xFF02 {
-            println!("READ at {addr:04X}")
-        }
         self.tick();
         let value = self.read_internal(addr);
         if self.trace {
@@ -137,7 +134,7 @@ impl Bus {
         }
         self.write_internal(addr, value);
         if addr == SB {
-            print!("{}", self.link.read(SB) as i8);
+            eprint!("{}", self.link.read(SB) as char);
             stdout().flush().unwrap();
         }
     }

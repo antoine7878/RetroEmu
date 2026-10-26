@@ -5,8 +5,6 @@ use crate::args::Args;
 
 use super::constants::CGB_FLAG;
 
-pub const FRAME_RATE: u32 = 60;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GCMode {
     Dmg,
@@ -91,19 +89,17 @@ impl GCMode {
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub instructions_per_frame: u64,
     pub rng_seed: u32,
     pub mode: GCMode,
-    pub frame_time: Duration,
+    pub frame_time: Option<Duration>,
 }
 
 impl Config {
     pub fn new(args: &Args, rom: &[u8]) -> Result<Self, Box<dyn Error>> {
         let rng_seed = SystemTime::now().duration_since(UNIX_EPOCH)?.subsec_nanos();
         let mode = Self::mode(rom);
-        let frame_time = Duration::from_nanos(args.frame_time / FRAME_RATE as u64);
-        let instructions_per_frame = 69905;
-        Ok(Self { rng_seed, mode, instructions_per_frame, frame_time })
+        let frame_time = (args.max_fps > 0).then(|| Duration::from_secs(1) / args.max_fps);
+        Ok(Self { rng_seed, mode, frame_time })
     }
 
     fn mode(rom: &[u8]) -> GCMode {

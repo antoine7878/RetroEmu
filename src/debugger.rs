@@ -228,7 +228,7 @@ impl Debugger {
     pub fn set_step_budget(&mut self, n: u32) { self.step_budget = Some(n); }
 
     fn add_breakpoint<'a, It: Iterator<Item = &'a str>>(&mut self, it: &mut It) {
-        let max_id = *self.breakpoints.values().max().unwrap_or(&0);
+        let max_id = *self.breakpoints.values().max().unwrap_or(&0) + 1;
         let Some(addr) = parse_addr(it) else { return };
         if self.breakpoints.insert(addr, max_id).is_none() {
             self.log(format!("{YELLOW}Breakpoint{RESET} {max_id} added: {CYAN}${addr:04X}{RESET}"));
@@ -244,10 +244,11 @@ impl Debugger {
     }
 
     fn add_watchpoint<'a, It: Iterator<Item = &'a str>>(&mut self, it: &mut It) {
-        let max_id = *self.breakpoints.values().max().unwrap_or(&0);
-        let on = match it.next() {
-            Some("r" | "read") => WatchOn::Read,
-            Some("w" | "write") => WatchOn::Write,
+        let mut max_id = *self.watchpoints.values().max().unwrap_or(&0) + 1;
+        let ons = match it.next() {
+            Some("r" | "read") => [WatchOn::Read, WatchOn::Read],
+            Some("w" | "write") => [WatchOn::Write, WatchOn::Write],
+            Some("rw" | "wr") => [WatchOn::Read, WatchOn::Write],
             _ => return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}")),
         };
         let Some(range) = it.next() else {
@@ -258,9 +259,12 @@ impl Debugger {
             return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}"));
         };
         let end = parse_addr(it).unwrap_or(start);
-        let point = Watchpoint { start, end, on, value: None };
-        if self.watchpoints.insert(point, max_id).is_none() {
-            self.log(format!("{YELLOW}Watchpoint{RESET} {max_id} added: {point}"));
+        for on in ons {
+            let point = Watchpoint { start, end, on, value: None };
+            if self.watchpoints.insert(point, max_id).is_none() {
+                max_id += 1;
+                self.log(format!("{YELLOW}Watchpoint{RESET} {max_id} added: {point}"));
+            }
         }
     }
 

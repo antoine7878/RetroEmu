@@ -13,28 +13,29 @@ use sdl2::{EventPump, Sdl};
 
 use crate::args::Args;
 use crate::debugger::{DebugAction, Debugger, StopReason};
-use crate::gbc::{GameBoy, HEIGHT, PROMPT, SCALE, WIDTH};
+use crate::gbc::{CYCLES_PER_FRAME, GameBoy, HEIGHT, PROMPT, SCALE, WIDTH};
 use crate::prompt::{self, Prompt};
 
 struct FpsCounter {
     window_start: Instant,
-    emulated: u32,
+    start_cycle: u64,
     presented: u32,
 }
 
 impl Default for FpsCounter {
-    fn default() -> Self { Self { window_start: Instant::now(), emulated: 0, presented: 0 } }
+    fn default() -> Self { Self { window_start: Instant::now(), start_cycle: 0, presented: 0 } }
 }
 
 impl FpsCounter {
-    fn tick(&mut self) -> Option<(f64, f64)> {
+    fn tick(&mut self, cycle: u64) -> Option<(f64, f64)> {
         let elapsed = self.window_start.elapsed();
         if elapsed < Duration::from_secs(1) {
             return None;
         }
         let secs = elapsed.as_secs_f64();
-        let fps = (self.emulated as f64 / secs, self.presented as f64 / secs);
-        *self = Self::default();
+        let frames = cycle.saturating_sub(self.start_cycle) as f64 / CYCLES_PER_FRAME as f64;
+        let fps = (frames / secs, self.presented as f64 / secs);
+        *self = Self { start_cycle: cycle, ..Self::default() };
         Some(fps)
     }
 }
@@ -99,7 +100,7 @@ impl Frontend {
             .position_centered()
             .always_on_top()
             .build()?;
-        let mut canvas = window.into_canvas().present_vsync().build()?;
+        let mut canvas = window.into_canvas().build()?;
         canvas.set_logical_size(WIDTH as u32, HEIGHT as u32)?;
         canvas.set_integer_scale(true)?;
         let texture_creator = canvas.texture_creator();
@@ -128,7 +129,7 @@ impl Frontend {
         }
         let mut next_frame = Instant::now();
         'running: loop {
-            next_frame += game_boy.config.frame_time;
+            next_frame += game_boy.config.frame_time.unwrap_or_default();
 
             for event in self.event_pump.poll_iter() {
                 if let Event::Quit { .. } | Event::KeyDown { scancode: Some(Scancode::Escape), .. } = event {
@@ -150,7 +151,6 @@ impl Frontend {
 
             match self.mode {
                 Mode::Running => {
-                    self.fps.emulated += 1;
                     if let Some(reason) = game_boy.run_frame(self.dbg.as_mut()) {
                         self.stop(reason, game_boy);
                     }
@@ -159,7 +159,6 @@ impl Frontend {
                     if let Some(dbg) = self.dbg.as_mut() {
                         dbg.set_step_budget(n);
                     }
-                    self.fps.emulated += 1;
                     match game_boy.run_frame(self.dbg.as_mut()) {
                         None | Some(StopReason::Step) => {
                             if let Some(dbg) = &self.dbg {
@@ -174,15 +173,17 @@ impl Frontend {
 
             self.draw(game_boy)?;
 
-            if let Some((emu, lcd)) = self.fps.tick() {
+            if let Some((emu, lcd)) = self.fps.tick(game_boy.cycle_count()) {
                 let _ = self.canvas.window_mut().set_title(&format!("RetroEmu - {emu:.1} fps (lcd {lcd:.1})"));
             }
 
-            let now = Instant::now();
-            match next_frame.checked_duration_since(now) {
-                Some(remaining) => sleep(remaining),
-                None if now - next_frame > game_boy.config.frame_time * 5 => next_frame = now,
-                None => {}
+            if let Some(frame_time) = game_boy.config.frame_time {
+                let now = Instant::now();
+                match next_frame.checked_duration_since(now) {
+                    Some(remaining) => sleep(remaining),
+                    None if now - next_frame > frame_time * 5 => next_frame = now,
+                    None => {}
+                }
             }
         }
         prompt::restore_terminal();
