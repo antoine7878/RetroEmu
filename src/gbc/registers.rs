@@ -1,9 +1,15 @@
 use std::fmt;
 
 use super::config::GCMode;
-use super::constants::{CARRY_FLAG, HALF_CARRY_FLAG, PROGRAM_START, SUB_FLAG, ZERO_FLAG};
 use super::flag::{FlagSpec, Flags};
 use super::instruction::{R8, R16, R16Stk};
+
+const ZERO_FLAG: u8 = 7;
+const SUB_FLAG: u8 = 6;
+const HALF_CARRY_FLAG: u8 = 5;
+const CARRY_FLAG: u8 = 4;
+
+const PROGRAM_START: u16 = 0x0100;
 
 #[rustfmt::skip]
 #[derive(Default)]

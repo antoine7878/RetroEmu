@@ -2,15 +2,14 @@ use crate::debugger::MemAccess;
 
 use super::cart::Cartridge;
 use super::config::GCMode;
-use super::constants::{SB, SC, SVBK};
 use super::io_reg::{IOReg, IORegister};
 use super::joypad::Joypad;
 use super::link::Link;
 use super::memory_map::{
     AUDIO_END, AUDIO_START, BOOT_DISABLE, CRAM_END, CRAM_START, DMA_END, DMA_START, ECHO_END, ECHO_START, HRAM_END,
     HRAM_SIZE, HRAM_START, IE, IF, JOYPAD, KEY0, KEY1, NOT_END, NOT_START, OAM_END, OAM_START, PAL_END, PAL_START,
-    PPU_END, PPU_START, ROM_END, ROM_START, TIMER_END, TIMER_START, U1, U2E, U2S, U3E, U3S, U5, U6E, U6S, U7E, U7S, U8E,
-    U8S, VRAM_BS, VRAM_END, VRAM_START, WAVE_END, WAVE_START, WRAM_END, WRAM_START,
+    PPU_END, PPU_START, ROM_END, ROM_START, SB, SC, SVBK, TIMER_END, TIMER_START, U1, U2E, U2S, U3E, U3S, U5, U6E, U6S,
+    U7E, U7S, U8E, U8S, VBK, VRAM_END, VRAM_START, WAVE_END, WAVE_START, WRAM_END, WRAM_START,
 };
 use super::ppu::Ppu;
 use super::timer::Timer;
@@ -72,7 +71,7 @@ impl Bus {
             ECHO_START..ECHO_END => self.read_internal(addr - 0x2000),
             OAM_START..OAM_END => self.ppu.read(addr),
             NOT_START..NOT_END => 0xFF,
-            PPU_START..PPU_END | VRAM_BS => self.ppu.read(addr),
+            PPU_START..PPU_END | VBK => self.ppu.read(addr),
             DMA_START..DMA_END | PAL_START..PAL_END => self.ppu.read(addr),
             HRAM_START..HRAM_END => self.hram[(addr - HRAM_START) as usize],
             TIMER_START..TIMER_END => self.timer.read(addr),
@@ -108,7 +107,7 @@ impl Bus {
             ECHO_START..ECHO_END => self.write_internal(addr - 0x2000, value),
             OAM_START..OAM_END => self.ppu.write(addr, value),
             NOT_START..NOT_END => (),
-            PPU_START..PPU_END | VRAM_BS => self.ppu.write(addr, value),
+            PPU_START..PPU_END | VBK => self.ppu.write(addr, value),
             DMA_START..DMA_END | PAL_START..PAL_END => self.ppu.write(addr, value),
             HRAM_START..HRAM_END => self.hram[(addr - HRAM_START) as usize] = value,
             TIMER_START..TIMER_END => self.timer.write(addr, value),

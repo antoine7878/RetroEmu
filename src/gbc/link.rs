@@ -1,8 +1,8 @@
 use std::io::{Write, stdout};
 
 use super::config::GCMode;
-use super::constants::{SB, SC};
 use super::io_reg::{IOReg, IORegister};
+use super::memory_map::{SB, SC};
 
 #[derive(Default)]
 pub struct Link {

@@ -1,7 +1,6 @@
 use super::config::GCMode;
-use super::constants::{DIV, TAC, TIMA, TMA};
 use super::io_reg::{IOReg, IORegister};
-use super::memory_map::IF;
+use super::memory_map::{DIV, IF, TAC, TIMA, TMA};
 
 #[derive(Default)]
 pub struct Timer {

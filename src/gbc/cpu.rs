@@ -1,6 +1,6 @@
 use super::bus::Bus;
 use super::config::GCMode;
-use super::constants::DIV;
+use super::memory_map::DIV;
 use super::flag::{FlagSpec, Flags};
 use super::instruction::{AluOp, Cond, Instruction, R8, R16, R16Mem, R16Stk, ShiftOp};
 use super::registers::CpuRegisters;

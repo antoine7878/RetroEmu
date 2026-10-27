@@ -1,7 +1,6 @@
 use super::config::GCMode;
-use super::constants::SVBK;
 use super::io_reg::{IOReg, IORegister};
-use super::memory_map::{WRAM_END, WRAM_SIZE, WRAM_START};
+use super::memory_map::{SVBK, WRAM_END, WRAM_SIZE, WRAM_START};
 
 pub struct WRam {
     banks: [[u8; WRAM_SIZE]; 8],
