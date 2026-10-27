@@ -44,7 +44,10 @@ impl Cpu {
             Instruction::Stop => self.stop(bus),
             Instruction::Halt => self.power_mode = PowerMode::Halt,
             Instruction::Di => self.ime = false,
-            Instruction::Ei => self.ime = true,
+            Instruction::Ei => {
+                self.ime = true;
+                panic!("EI")
+            }
 
             Instruction::Ld(dst, src) => self.ld(bus, dst, src),
             Instruction::LdImm(r) => self.ldn8(bus, r),

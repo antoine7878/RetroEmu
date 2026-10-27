@@ -1,5 +1,3 @@
-use std::io::{Write, stdout};
-
 use crate::debugger::MemAccess;
 
 use super::cart::Cartridge;
@@ -133,10 +131,6 @@ impl Bus {
             self.accesses.push(MemAccess::write(addr, value));
         }
         self.write_internal(addr, value);
-        if addr == SB {
-            eprint!("{}", self.link.read(SB) as char);
-            stdout().flush().unwrap();
-        }
     }
 
     pub fn ticks(&mut self, m_cycle: u8) {

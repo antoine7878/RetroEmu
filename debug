@@ -1,5 +1,4 @@
-ab $0100
 aw rw $FF01
-aw rw $FF02
+aw rw $FF44
+aw rw $FF45
 l
-t

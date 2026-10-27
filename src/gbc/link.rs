@@ -1,3 +1,5 @@
+use std::io::{Write, stdout};
+
 use super::config::GCMode;
 use super::constants::{SB, SC};
 use super::io_reg::{IOReg, IORegister};
@@ -25,8 +27,21 @@ impl Link {
     pub fn write(&mut self, addr: u16, value: u8) {
         match addr {
             SB => self.buffer.write(value),
-            SC => self.ctrl.write(value),
+            SC => {
+                self.ctrl.write(value);
+                if self.ctrl.is_set(7) && self.ctrl.is_set(0) {
+                    self.transfer();
+                }
+            }
             _ => unreachable!(),
         }
+    }
+
+    fn transfer(&mut self) {
+        eprint!("{}", self.buffer.read() as char);
+        stdout().flush().unwrap();
+        self.buffer.write(0xFF);
+        self.ctrl.clear(7);
+        self.ctrl.clear(0);
     }
 }
