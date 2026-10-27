@@ -12,8 +12,8 @@ use sdl2::video::Window;
 use sdl2::{EventPump, Sdl};
 
 use crate::args::Args;
-use crate::debugger::{DebugAction, Debugger, StopReason};
-use crate::gbc::{CYCLES_PER_FRAME, GameBoy, HEIGHT, PROMPT, SCALE, WIDTH};
+use crate::debugger::{DebugAction, Debugger, PROMPT, StopReason};
+use crate::gbc::{CYCLES_PER_FRAME, GameBoy, HEIGHT, SCALE, WIDTH};
 use crate::prompt::{self, Prompt};
 
 struct FpsCounter {
@@ -131,10 +131,16 @@ impl Frontend {
         'running: loop {
             next_frame += game_boy.config.frame_time.unwrap_or_default();
 
+            let mut pause_requested = false;
             for event in self.event_pump.poll_iter() {
-                if let Event::Quit { .. } | Event::KeyDown { scancode: Some(Scancode::Escape), .. } = event {
-                    break 'running;
+                match event {
+                    Event::Quit { .. } | Event::KeyDown { scancode: Some(Scancode::Escape), .. } => break 'running,
+                    Event::KeyDown { scancode: Some(Scancode::P), repeat: false, .. } => pause_requested = true,
+                    _ => {}
                 }
+            }
+            if pause_requested && self.dbg.is_some() && !matches!(self.mode, Mode::Paused) {
+                self.stop(StopReason::Pause, game_boy);
             }
 
             while let Ok(mut cmd) = self.commands.try_recv() {

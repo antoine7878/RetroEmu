@@ -1,5 +1,3 @@
-pub const PROMPT: &str = "\x1b[1;32m(gbdb)\x1b[0m ";
-
 // ----- Console --------------------
 
 pub const SCALE: u32 = 2;

@@ -22,6 +22,6 @@ mod wram;
 
 pub use config::Config;
 pub use console::GameBoy;
-pub use constants::{CYCLES_PER_FRAME, FRAME_RATE, PROMPT, SCALE};
+pub use constants::{CYCLES_PER_FRAME, FRAME_RATE, SCALE};
 pub use memory_map::{memory_location, memory_range};
 pub use ppu::{HEIGHT, WIDTH};
