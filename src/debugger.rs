@@ -19,10 +19,11 @@ const HISTORY_LEN: usize = 3;
 const ASM_WIDTH: usize = 32;
 const REG_WIDTH: usize = 20;
 const CONSOLE_HEIGHT: usize = 10;
-const SHORTCUTS: [(&str, &str); 10] = [
+const SHORTCUTS: [(&str, &str); 11] = [
     ("c", "Continue"),
     ("s", "Step"),
     ("t", "Trace"),
+    ("P", "Pause (window)"),
     ("[ad][bw]", "Add/Delete Breakpoint/Watchpoint"),
     ("l", "List"),
     ("cls", "Clear"),
@@ -95,12 +96,14 @@ pub enum StopReason {
     Breakpoint(u16),
     Watchpoint(MemAccess),
     Step,
+    Pause,
 }
 
 impl fmt::Display for StopReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             StopReason::Step => write!(f, "{YELLOW}Step{RESET}"),
+            StopReason::Pause => write!(f, "{YELLOW}Paused{RESET}"),
             StopReason::Breakpoint(addr) => {
                 write!(f, "{YELLOW}Breakpoint{RESET} at {CYAN}${addr:04X}{RESET}",)
             }
@@ -316,6 +319,7 @@ impl Debugger {
         self.log(format!("  {CYAN}h                    {RESET}show this help"));
         self.log(format!("  {CYAN}q                    {RESET}quit"));
         self.log(format!("  {CYAN}<enter>              {RESET}repeat last cmd / stop trace"));
+        self.log(format!("  {CYAN}P (game window)      {RESET}pause execution"));
     }
 
     pub fn log(&mut self, line: String) { self.console.push(line); }

@@ -131,10 +131,16 @@ impl Frontend {
         'running: loop {
             next_frame += game_boy.config.frame_time.unwrap_or_default();
 
+            let mut pause_requested = false;
             for event in self.event_pump.poll_iter() {
-                if let Event::Quit { .. } | Event::KeyDown { scancode: Some(Scancode::Escape), .. } = event {
-                    break 'running;
+                match event {
+                    Event::Quit { .. } | Event::KeyDown { scancode: Some(Scancode::Escape), .. } => break 'running,
+                    Event::KeyDown { scancode: Some(Scancode::P), repeat: false, .. } => pause_requested = true,
+                    _ => {}
                 }
+            }
+            if pause_requested && self.dbg.is_some() && !matches!(self.mode, Mode::Paused) {
+                self.stop(StopReason::Pause, game_boy);
             }
 
             while let Ok(mut cmd) = self.commands.try_recv() {
