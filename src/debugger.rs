@@ -5,7 +5,7 @@ use std::fs::read_to_string;
 use std::io::Write;
 
 use crate::args::Args;
-use crate::gbc::{GameBoy, PROMPT};
+use crate::gbc::{GameBoy, PROMPT, memory_location, memory_range};
 
 const GREY: &str = "\x1b[2m";
 const WHITE: &str = "\x1b[7m";
@@ -74,7 +74,7 @@ impl fmt::Display for Watchpoint {
         if self.start != self.end {
             write!(f, "..{CYAN}${:04X}{RESET}", self.end)?;
         }
-        write!(f, " on: {}", self.on)?;
+        write!(f, " on {}", self.on)?;
         Ok(())
         // if let Some(value) = self.value { writeln!(f, "to {value}") } else { writeln!(f, "change") }
     }
@@ -101,9 +101,15 @@ impl fmt::Display for StopReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             StopReason::Step => write!(f, "{YELLOW}Step{RESET}"),
-            StopReason::Breakpoint(addr) => write!(f, "{YELLOW}Breakpoint{RESET} at {CYAN}${addr:04X}{RESET}"),
+            StopReason::Breakpoint(addr) => {
+                write!(f, "{YELLOW}Breakpoint{RESET} at {CYAN}${addr:04X}{RESET}",)
+            }
             StopReason::Watchpoint(MemAccess { addr, value, on }) => {
-                write!(f, "{YELLOW}Watchpoint{RESET}: {on} value 0x{value:02X} at {CYAN}${addr:04X}{RESET}")
+                write!(
+                    f,
+                    "{YELLOW}Watchpoint{RESET} {on} value 0x{value:02X} at {CYAN}${addr:04X}{RESET} in {}",
+                    memory_location(*addr)
+                )
             }
         }
     }
@@ -213,14 +219,14 @@ impl Debugger {
     }
 
     fn step<'a, It: Iterator<Item = &'a str>>(&mut self, it: &mut It) -> DebugAction {
-        let n = parse_int(it);
+        let n = Self::parse_int(it);
         self.step_budget = Some(n);
         self.resume();
         DebugAction::Step
     }
 
     fn trace<'a, It: Iterator<Item = &'a str>>(&mut self, it: &mut It) -> DebugAction {
-        let n = parse_int(it);
+        let n = Self::parse_int(it);
         self.resume();
         DebugAction::Trace(n)
     }
@@ -229,14 +235,14 @@ impl Debugger {
 
     fn add_breakpoint<'a, It: Iterator<Item = &'a str>>(&mut self, it: &mut It) {
         let max_id = *self.breakpoints.values().max().unwrap_or(&0) + 1;
-        let Some(addr) = parse_addr(it) else { return };
+        let Some(addr) = Self::parse_addr(it) else { return };
         if self.breakpoints.insert(addr, max_id).is_none() {
             self.log(format!("{YELLOW}Breakpoint{RESET} {max_id} added: {CYAN}${addr:04X}{RESET}"));
         }
     }
 
     fn delete_breakpoing<'a, It: Iterator<Item = &'a str>>(&mut self, it: &mut It) {
-        let point_id = parse_int(it) as usize;
+        let point_id = Self::parse_int(it) as usize;
         let Some((&point, _)) = self.breakpoints.iter().find(|&(_, id)| id == &point_id) else { return };
         if let Some(id) = self.breakpoints.remove(&point) {
             self.log(format!("{YELLOW}Breakpoint{RESET} {id} removed at {CYAN}${point:04X}{RESET}"));
@@ -254,11 +260,15 @@ impl Debugger {
         let Some(range) = it.next() else {
             return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}"));
         };
-        let it = &mut range.split("..");
-        let Some(start) = parse_addr(it) else {
+        let mut locations = range.split("..").map(Self::parse_location);
+        let Some(Some((start, first_end))) = locations.next() else {
             return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}"));
         };
-        let end = parse_addr(it).unwrap_or(start);
+        let end = match locations.next() {
+            None => first_end,
+            Some(Some((_, end))) => end,
+            Some(None) => return self.log(format!("{YELLOW}Watchpoint{RESET} {RED}not added{RESET}")),
+        };
         for on in ons {
             let point = Watchpoint { start, end, on, value: None };
             if self.watchpoints.insert(point, max_id).is_none() {
@@ -269,7 +279,7 @@ impl Debugger {
     }
 
     fn delete_watchpoint<'a, It: Iterator<Item = &'a str>>(&mut self, it: &mut It) {
-        let point_id = parse_int(it) as usize;
+        let point_id = Self::parse_int(it) as usize;
         let Some((&point, _)) = self.watchpoints.iter().find(|&(_, id)| id == &point_id) else { return };
         if let Some(id) = self.watchpoints.remove(&point) {
             self.log(format!("{YELLOW}Watchpoint{RESET} {id} removed: {point}"));
@@ -299,7 +309,7 @@ impl Debugger {
         self.log(format!("  {CYAN}t [n]                {RESET}trace n inst/frame (default 1)"));
         self.log(format!("  {CYAN}ab $<addr>           {RESET}add breakpoint at hex addr"));
         self.log(format!("  {CYAN}db <id>              {RESET}delete breakpoint by id"));
-        self.log(format!("  {CYAN}aw r|w $<a>[..$<b>]  {RESET}add read/write watchpoint"));
+        self.log(format!("  {CYAN}aw r|w <a>[..<b>]    {RESET}add read/write watchpoint ($hex or name: LCDC, WRAM..)"));
         self.log(format!("  {CYAN}dw <id>              {RESET}delete watchpoint by id"));
         self.log(format!("  {CYAN}l                    {RESET}list breakpoints & watchpoints"));
         self.log(format!("  {CYAN}cls                  {RESET}clear the console"));
@@ -314,7 +324,8 @@ impl Debugger {
         let mut out = String::from("\x1b[H\x1b[J");
         out += &self.disassembly_registers_panel(game_boy);
         out += &self.console_lines();
-        out += &format!("\n\n{}\x1b[A\r", shortcut_bar(terminal_size().map_or(usize::MAX, |(_, cols)| cols)));
+        let width = Self::terminal_size().map_or(usize::MAX, |(_, cols)| cols);
+        out += &format!("\n\n{}\x1b[A\r", Self::shortcut_bar(width));
         let mut stdout = std::io::stdout().lock();
         let _ = write!(stdout, "{out}");
         let _ = stdout.flush();
@@ -338,8 +349,8 @@ impl Debugger {
             w2 = REG_WIDTH - 12
         );
         for i in 0..PANEL_HEIGHT {
-            let left = asm.get(i).cloned().unwrap_or_else(|| pad("", ASM_WIDTH));
-            let right = pad(regs.get(i).map_or("", String::as_str), REG_WIDTH);
+            let left = asm.get(i).cloned().unwrap_or_else(|| Self::pad("", ASM_WIDTH));
+            let right = Self::pad(regs.get(i).map_or("", String::as_str), REG_WIDTH);
             let (name, value) = right.split_at(2);
             let right = format!("{CYAN}{name}{RESET}{value}");
             out += &format!("│{left}││{right}│\n");
@@ -358,7 +369,7 @@ impl Debugger {
             .enumerate()
             .map(|(i, (addr, text))| {
                 let bp = if self.breakpoints.contains_key(&addr) { '●' } else { ' ' };
-                let line = pad(&format!(" ${addr:04X}  {text}"), ASM_WIDTH - 1);
+                let line = Self::pad(&format!(" ${addr:04X}  {text}"), ASM_WIDTH - 1);
                 let style = match i.cmp(&current) {
                     Ordering::Less => GREY,
                     Ordering::Equal => WHITE,
@@ -370,7 +381,7 @@ impl Debugger {
     }
 
     fn console_lines(&self) -> String {
-        let height = console_height();
+        let height = Self::console_height();
         let blank = height.saturating_sub(self.console.len());
         let start = self.console.len().saturating_sub(height);
         (0..height)
@@ -378,37 +389,46 @@ impl Debugger {
             .collect::<Vec<_>>()
             .join("\n")
     }
-}
 
-fn pad(s: &str, width: usize) -> String { format!("{s:<width$.width$}") }
+    fn pad(s: &str, width: usize) -> String { format!("{s:<width$.width$}") }
 
-fn shortcut_bar(width: usize) -> String {
-    let mut out = String::new();
-    let mut len = 0;
-    for (key, desc) in SHORTCUTS {
-        let item_len = key.chars().count() + 1 + desc.len() + 2;
-        if len + item_len > width {
-            break;
+    fn shortcut_bar(width: usize) -> String {
+        let mut out = String::new();
+        let mut len = 0;
+        for (key, desc) in SHORTCUTS {
+            let item_len = key.chars().count() + 1 + desc.len() + 2;
+            if len + item_len > width {
+                break;
+            }
+            len += item_len;
+            out += &format!("{WHITE}{key}{RESET} {desc}  ");
         }
-        len += item_len;
-        out += &format!("{WHITE}{key}{RESET} {desc}  ");
+        out
     }
-    out
-}
 
-fn console_height() -> usize {
-    terminal_size().map_or(CONSOLE_HEIGHT, |(rows, _)| rows.saturating_sub(PANEL_HEIGHT + 2 + 2).max(1))
-}
+    fn console_height() -> usize {
+        Self::terminal_size().map_or(CONSOLE_HEIGHT, |(rows, _)| rows.saturating_sub(PANEL_HEIGHT + 2 + 2).max(1))
+    }
 
-fn terminal_size() -> Option<(usize, usize)> {
-    let out = std::process::Command::new("stty").arg("size").stdin(std::process::Stdio::inherit()).output().ok()?;
-    let out = String::from_utf8(out.stdout).ok()?;
-    let mut it = out.split_whitespace().map(|n| n.parse().ok());
-    Some((it.next()??, it.next()??))
-}
-fn parse_addr<'a, It: Iterator<Item = &'a str>>(it: &mut It) -> Option<u16> {
-    it.next()?.strip_prefix('$').and_then(|hex| u16::from_str_radix(hex, 16).ok())
-}
-fn parse_int<'a, It: Iterator<Item = &'a str>>(it: &mut It) -> u32 {
-    it.next().and_then(|s| s.parse().ok()).unwrap_or(1)
+    fn terminal_size() -> Option<(usize, usize)> {
+        let out = std::process::Command::new("stty").arg("size").stdin(std::process::Stdio::inherit()).output().ok()?;
+        let out = String::from_utf8(out.stdout).ok()?;
+        let mut it = out.split_whitespace().map(|n| n.parse().ok());
+        Some((it.next()??, it.next()??))
+    }
+
+    fn parse_addr<'a, It: Iterator<Item = &'a str>>(it: &mut It) -> Option<u16> {
+        it.next()?.strip_prefix('$').and_then(|hex| u16::from_str_radix(hex, 16).ok())
+    }
+
+    fn parse_location(s: &str) -> Option<(u16, u16)> {
+        match s.strip_prefix('$') {
+            Some(hex) => u16::from_str_radix(hex, 16).ok().map(|addr| (addr, addr)),
+            None => memory_range(s),
+        }
+    }
+
+    fn parse_int<'a, It: Iterator<Item = &'a str>>(it: &mut It) -> u32 {
+        it.next().and_then(|s| s.parse().ok()).unwrap_or(1)
+    }
 }
