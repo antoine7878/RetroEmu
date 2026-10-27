@@ -1,7 +1,7 @@
 #![allow(unused)]
 
-use super::constants::{IE, IF};
 use super::io_reg::IORegister;
+use super::memory_map::{IE, IF};
 
 #[derive(Default)]
 pub struct Interrupt {

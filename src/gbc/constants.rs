@@ -3,71 +3,6 @@ use std::time::Duration;
 //
 pub const PROMPT: &str = "\x1b[1;32m(gbdb)\x1b[0m ";
 
-// ----- Memory Size --------------------
-
-pub const WRAM_SIZE: usize = (WRAM_END - WRAM_START) as usize;
-pub const HRAM_SIZE: usize = (HRAM_END - HRAM_START) as usize;
-pub const VRAM_SIZE: usize = (VRAM_END - VRAM_START) as usize;
-pub const OAM_SIZE: usize = (OAM_END - OAM_START) as usize;
-pub const CRAM_SIZE: usize = 1 << 13;
-
-// ----- Memory Map --------------------
-
-pub const ROM_START: u16 = 0x0000;
-pub const ROM_END: u16 = 0x8000;
-pub const VRAM_START: u16 = 0x8000;
-pub const VRAM_END: u16 = 0xA000;
-pub const CRAM_START: u16 = 0xA000;
-pub const CRAM_END: u16 = 0xC000;
-pub const WRAM_START: u16 = 0xC000;
-pub const WRAM_END: u16 = 0xE000;
-pub const ECHO_START: u16 = 0xE000;
-pub const ECHO_END: u16 = 0xFE00;
-pub const OAM_START: u16 = 0xFE00;
-pub const OAM_END: u16 = 0xFEA0;
-pub const NOT_START: u16 = 0xFEA0;
-pub const NOT_END: u16 = 0xFF00;
-
-pub const PPU_START: u16 = 0xFF40;
-pub const PPU_END: u16 = 0xFF4C;
-
-pub const KEY0: u16 = 0xFF4C;
-pub const KEY1: u16 = 0xFF4D;
-
-pub const VRAM_BS: u16 = 0xFF4F;
-pub const DMA_START: u16 = 0xFF51;
-pub const DMA_END: u16 = 0xFF56;
-pub const PAL_START: u16 = 0xFF68;
-pub const PAL_END: u16 = 0xFF6D;
-
-pub const HRAM_START: u16 = 0xFF80;
-pub const HRAM_END: u16 = 0xFFFF;
-pub const TIMER_START: u16 = 0xFF04;
-pub const TIMER_END: u16 = 0xFF08;
-pub const AUDIO_START: u16 = 0xFF10;
-pub const AUDIO_END: u16 = 0xFF27;
-pub const WAVE_START: u16 = 0xFF30;
-pub const WAVE_END: u16 = 0xFF40;
-
-pub const IF: u16 = 0xFF0F;
-pub const IE: u16 = 0xFFFF;
-pub const JOYPAD: u16 = 0xFF00;
-
-pub const BOOT_DISABLE: u16 = 0xFF50;
-
-pub const U1: u16 = 0xFF03;
-pub const U2S: u16 = 0xFF08;
-pub const U2E: u16 = 0xFF0F;
-pub const U3S: u16 = 0xFF27;
-pub const U3E: u16 = 0xFF30;
-pub const U5: u16 = 0xFF4E;
-pub const U6S: u16 = 0xFF56;
-pub const U6E: u16 = 0xFF68;
-pub const U7S: u16 = 0xFF6D;
-pub const U7E: u16 = 0xFF70;
-pub const U8S: u16 = 0xFF71;
-pub const U8E: u16 = 0xFF80;
-
 // ----- Registers --------------------
 
 pub const ZERO_FLAG: u8 = 7;
@@ -106,9 +41,46 @@ pub const VBK: u16 = 0xFF4F;
 pub const LCDC_OFF: u8 = 7;
 // pub const LDCL_OSIZE: u8 = 2;
 
+pub const HDMA1: u16 = 0xFF51;
+pub const HDMA2: u16 = 0xFF52;
+pub const HDMA3: u16 = 0xFF53;
+pub const HDMA4: u16 = 0xFF54;
+pub const HDMA5: u16 = 0xFF55;
+pub const BCPS: u16 = 0xFF68;
+pub const BCPD: u16 = 0xFF69;
+pub const OCPS: u16 = 0xFF6A;
+pub const OCPD: u16 = 0xFF6B;
+pub const OPRI: u16 = 0xFF6C;
+
 // ----- WRAM --------------------
 
 pub const SVBK: u16 = 0xFF70;
+
+// ----- AUDIO --------------------
+
+pub const NR10: u16 = 0xFF10;
+pub const NR11: u16 = 0xFF11;
+pub const NR12: u16 = 0xFF12;
+pub const NR13: u16 = 0xFF13;
+pub const NR14: u16 = 0xFF14;
+pub const NR21: u16 = 0xFF16;
+pub const NR22: u16 = 0xFF17;
+pub const NR23: u16 = 0xFF18;
+pub const NR24: u16 = 0xFF19;
+pub const NR30: u16 = 0xFF1A;
+pub const NR31: u16 = 0xFF1B;
+pub const NR32: u16 = 0xFF1C;
+pub const NR33: u16 = 0xFF1D;
+pub const NR34: u16 = 0xFF1E;
+pub const NR41: u16 = 0xFF20;
+pub const NR42: u16 = 0xFF21;
+pub const NR43: u16 = 0xFF22;
+pub const NR44: u16 = 0xFF23;
+pub const NR50: u16 = 0xFF24;
+pub const NR51: u16 = 0xFF25;
+pub const NR52: u16 = 0xFF26;
+pub const PCM12: u16 = 0xFF76;
+pub const PCM34: u16 = 0xFF77;
 
 // ----- CARTRIDGE --------------------
 
@@ -135,3 +107,7 @@ pub const TAC: u16 = 0xFF07;
 
 pub const SB: u16 = 0xFF01;
 pub const SC: u16 = 0xFF02;
+
+// ----- infrared --------------------
+
+pub const RP: u16 = 0xFF56;

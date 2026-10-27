@@ -1,9 +1,11 @@
 use super::config::GCMode;
 use super::constants::{
-    BGP, DMA, DMA_END, DMA_START, HEIGHT, LCDC, LCDC_OFF, LY, LYC, OAM_END, OAM_SIZE, OAM_START, OBP0, OBP1, PAL_END,
-    PAL_START, PALETTE_ORIGNAL, SCX, SCY, STAT, VBK, VRAM_END, VRAM_SIZE, VRAM_START, WIDTH, WX, WY,
+    BGP, DMA, HEIGHT, LCDC, LCDC_OFF, LY, LYC, OBP0, OBP1, PALETTE_ORIGNAL, SCX, SCY, STAT, VBK, WIDTH, WX, WY,
 };
 use super::io_reg::{IOReg, IORegister};
+use super::memory_map::{
+    DMA_END, DMA_START, OAM_END, OAM_SIZE, OAM_START, PAL_END, PAL_START, VRAM_END, VRAM_SIZE, VRAM_START,
+};
 #[derive(PartialEq, Clone, Eq)]
 pub enum PpuMode {
     HBlank = 0,

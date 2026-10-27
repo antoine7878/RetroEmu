@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use super::constants::{CARTIDGE_TYPE, CRAM_SIZE, CRAM_START, RAM_SIZE_FLAG, ROM_SIZE_FLAG};
+use super::constants::{CARTIDGE_TYPE, RAM_SIZE_FLAG, ROM_SIZE_FLAG};
+use super::memory_map::{CRAM_SIZE, CRAM_START};
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub enum Mbc {
